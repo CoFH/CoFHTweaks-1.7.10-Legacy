@@ -17,6 +17,7 @@ import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 class ASMCore {
@@ -42,6 +43,7 @@ class ASMCore {
 		hashes.put("cofh.tweak.asmhooks.HooksCore", (byte) 5);
 		hashes.put("net.minecraft.entity.item.EntityItem", (byte) 6);
 		hashes.put("net.minecraft.world.World", (byte) 7);
+		hashes.put("net.minecraft.entity.EntityLiving", (byte) 8);
 	}
 
 	static byte[] transform(int index, String name, String transformedName, byte[] bytes) {
@@ -63,6 +65,8 @@ class ASMCore {
 			return alterEntityItem(transformedName, bytes, cr);
 		case 7:
 			return alterWorld(transformedName, bytes, cr);
+		case 8:
+			return alterEntityLiving(transformedName, bytes, cr);
 
 		default:
 			return bytes;
@@ -140,6 +144,44 @@ class ASMCore {
 		cn.accept(cw);
 		bytes = cw.toByteArray();
 
+		return bytes;
+	}
+
+	private static byte[] alterEntityLiving(String name, byte[] bytes, ClassReader cr) {
+
+		String[] names = { "<init>" };
+
+		ClassNode cn = new ClassNode(ASM5);
+		cr.accept(cn, ClassReader.EXPAND_FRAMES);
+
+		l: {
+			MethodNode m = null;
+			for (MethodNode n : cn.methods) {
+				if (names[0].equals(n.name)) {
+					m = n;
+					break;
+				}
+			}
+
+			if (m == null) {
+				break l;
+			}
+
+			for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+				if (n.getOpcode() == NEW) {
+					TypeInsnNode node = ((TypeInsnNode) n);
+					if (!"net/minecraft/entity/ai/EntityAITasks".equals(node.desc))
+						continue;
+					node.desc = "cofh/tweak/asmhooks/entity/EntityAITasks";
+					for (; n.getOpcode() != INVOKESPECIAL; n = n.getNext());
+					((MethodInsnNode) n).owner = node.desc;
+				}
+			}
+
+			ClassWriter cw = new ClassWriter(0);
+			cn.accept(cw);
+			bytes = cw.toByteArray();
+		}
 		return bytes;
 	}
 
