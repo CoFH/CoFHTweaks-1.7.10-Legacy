@@ -1,8 +1,11 @@
-# Whether or not EntityItems will attempt to stack in-world. This overrides the setting in CoFHCore.
+# If true, EntityItems will attempt to stack in-world. This overrides the setting in CoFHCore.
 StackItems=true
 
-# Whether or not textures will animate. The setting in CoFHCore overrides this.
+# If true, Entities will attempt to collide/push with each other.
+EntityCollisions=true
+
+# If true, textures will animate. The setting in CoFHCore overrides this.
 AnimatedTextures=true
 
-# Whether or not the client will perform in-depth lighting on chunks.
+# If true, the client will perform in-depth lighting on chunks.
 ChunkLighting=false

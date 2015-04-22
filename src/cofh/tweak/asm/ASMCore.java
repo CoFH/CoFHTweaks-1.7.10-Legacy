@@ -41,6 +41,7 @@ class ASMCore {
 		hashes.put("net.minecraft.entity.Entity", (byte) 4);
 		hashes.put("cofh.tweak.asmhooks.HooksCore", (byte) 5);
 		hashes.put("net.minecraft.entity.item.EntityItem", (byte) 6);
+		hashes.put("net.minecraft.world.World", (byte) 7);
 	}
 
 	static byte[] transform(int index, String name, String transformedName, byte[] bytes) {
@@ -60,10 +61,55 @@ class ASMCore {
 			return alterHooksCore(transformedName, bytes, cr);
 		case 6:
 			return alterEntityItem(transformedName, bytes, cr);
+		case 7:
+			return alterWorld(transformedName, bytes, cr);
 
 		default:
 			return bytes;
 		}
+	}
+
+	private static byte[] alterWorld(String name, byte[] bytes, ClassReader cr) {
+
+		String[] names;
+		if (LoadingPlugin.runtimeDeobfEnabled) {
+			names = new String[] { "func_72945_a" };
+		} else {
+			names = new String[] { "getCollidingBoundingBoxes" };
+		}
+
+		ClassNode cn = new ClassNode(ASM5);
+		cr.accept(cn, ClassReader.EXPAND_FRAMES);
+
+		l: {
+			MethodNode boundingBoxes = null;
+			for (MethodNode n : cn.methods) {
+				if (names[0].equals(n.name)) {
+					boundingBoxes = n;
+					break;
+				}
+			}
+
+			if (boundingBoxes == null)
+				break l;
+
+			boundingBoxes.localVariables = null;
+
+			boundingBoxes.instructions.clear();
+			boundingBoxes.instructions.add(new VarInsnNode(ALOAD, 0));
+			boundingBoxes.instructions.add(new VarInsnNode(ALOAD, 1));
+			boundingBoxes.instructions.add(new VarInsnNode(ALOAD, 2));
+			String sig = "(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;Lnet/minecraft/util/AxisAlignedBB;)"
+					+ "Ljava/util/List;";
+			boundingBoxes.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "getWorldCollisionBoxes", sig, false));
+			boundingBoxes.instructions.add(new InsnNode(ARETURN));
+
+			ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+			cn.accept(cw);
+			bytes = cw.toByteArray();
+		}
+
+		return bytes;
 	}
 
 	private static byte[] alterHooksCore(String name, byte[] bytes, ClassReader cr) {
@@ -78,20 +124,14 @@ class ASMCore {
 		ClassNode cn = new ClassNode(ASM5);
 		cr.accept(cn, ClassReader.EXPAND_FRAMES);
 
-		MethodNode m = null;
-		for (MethodNode n : cn.methods) {
-			if ("getEntityCollisionBoxes".equals(n.name)) {
-				m = n;
-				break;
-			}
-		}
-
-		for (int i = 0, e = m.instructions.size(); i < e; ++i) {
-			AbstractInsnNode n = m.instructions.get(i);
-			if (n.getOpcode() == INVOKEVIRTUAL) {
-				MethodInsnNode mn = (MethodInsnNode) n;
-				if (names[0].equals(mn.name)) {
-					mn.name = "cofh_collideCheck";
+		for (MethodNode m : cn.methods) {
+			for (int i = 0, e = m.instructions.size(); i < e; ++i) {
+				AbstractInsnNode n = m.instructions.get(i);
+				if (n.getOpcode() == INVOKEVIRTUAL) {
+					MethodInsnNode mn = (MethodInsnNode) n;
+					if (names[0].equals(mn.name)) {
+						mn.name = "cofh_collideCheck";
+					}
 				}
 			}
 		}
@@ -132,7 +172,8 @@ class ASMCore {
 
 			m.instructions.clear();
 			m.instructions.add(new VarInsnNode(ALOAD, 0));
-			m.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "stackItems", "(Lnet/minecraft/entity/item/EntityItem;)V", false));
+			m.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "stackItems",
+					"(Lnet/minecraft/entity/item/EntityItem;)V", false));
 			m.instructions.add(new InsnNode(RETURN));
 
 			ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
@@ -182,6 +223,11 @@ class ASMCore {
 						mn.owner = HooksCore;
 						mn.desc = "(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;Lnet/minecraft/util/AxisAlignedBB;)Ljava/util/List;";
 						mn.name = "getEntityCollisionBoxes";
+					}
+				} else if (n.getOpcode() == INVOKESTATIC) {
+					MethodInsnNode mn = (MethodInsnNode) n;
+					if ("cofh/asmhooks/HooksCore".equals(mn.owner) && "getEntityCollisionBoxes".equals(mn.name)) {
+						mn.owner = HooksCore;
 					}
 				}
 			}
@@ -347,7 +393,9 @@ class ASMCore {
 				containsItem.instructions.clear();
 				containsItem.instructions.add(getEntry.instructions);
 				/**
-				 * this looks counter intuitive (replacing getEntry != null check with the full method) but due to how the JVM handles inlining, this needs to
+				 * this looks counter intuitive (replacing getEntry != null
+				 * check with the full method) but due to how the JVM handles
+				 * inlining, this needs to
 				 * be done manually
 				 */
 				for (AbstractInsnNode n = containsItem.instructions.get(0); n != null; n = n.getNext()) {

@@ -18,8 +18,9 @@ public class Config {
 
 	public static void loadConfig(File file) {
 
-		file = new File(file, "config/cofh/tweak/common.prop");
 		try {
+			new File(file, "config/cofh/tweak").mkdirs();
+			file = new File(file, "config/cofh/tweak/common.prop");
 			if (file.createNewFile()) {
 				copyFileUsingStream("assets/cofh/tweak/default.prop", file);
 			}
@@ -35,11 +36,13 @@ public class Config {
 		}
 
 		stackItems = Boolean.parseBoolean(config.getProperty("StackItems", "true"));
+		collideEntities = Boolean.parseBoolean(config.getProperty("EntityCollisions", "true"));
 		animateTextures = Boolean.parseBoolean(config.getProperty("AnimatedTextures", "true"));
 		lightChunks = Boolean.parseBoolean(config.getProperty("ChunkLighting", "true"));
 	}
 
 	public static boolean stackItems;
+	public static boolean collideEntities;
 	public static boolean animateTextures;
 	public static boolean lightChunks;
 
