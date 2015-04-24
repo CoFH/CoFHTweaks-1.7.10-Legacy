@@ -19,7 +19,7 @@ public class CoFHAccessTransformer extends AccessTransformer {
 		instance = this;
 
 		// file names are case sensitive. do not alter.
-		mapFileList.add("CoFH_at.cfg");
+		mapFileList.add("CoFHTweak_at.cfg");
 		// CoFH_at.cfg must also contain all entries from cofhlib_at.cfg
 
 		for (String file : mapFileList) {
