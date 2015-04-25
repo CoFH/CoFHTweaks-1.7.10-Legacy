@@ -3,6 +3,8 @@ package cofh.tweak.asm;
 import static org.objectweb.asm.Opcodes.*;
 
 import cofh.tweak.asmhooks.Config;
+import cpw.mods.fml.relauncher.FMLLaunchHandler;
+import cpw.mods.fml.relauncher.Side;
 
 import gnu.trove.map.hash.TObjectByteHashMap;
 
@@ -13,7 +15,10 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.JumpInsnNode;
+import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -31,6 +36,7 @@ class ASMCore {
 	static TObjectByteHashMap<String> hashes = new TObjectByteHashMap<String>(30, 1, (byte) 0);
 
 	private static String HooksCore = "cofh/tweak/asmhooks/HooksCore";
+	private static String ConfigCore = "cofh/tweak/asmhooks/Config";
 
 	static {
 
@@ -44,6 +50,7 @@ class ASMCore {
 		hashes.put("net.minecraft.entity.item.EntityItem", (byte) 6);
 		hashes.put("net.minecraft.world.World", (byte) 7);
 		hashes.put("net.minecraft.entity.EntityLiving", (byte) 8);
+		hashes.put("net.minecraft.client.multiplayer.WorldClient", (byte) 9);
 	}
 
 	static byte[] transform(int index, String name, String transformedName, byte[] bytes) {
@@ -67,6 +74,8 @@ class ASMCore {
 			return alterWorld(transformedName, bytes, cr);
 		case 8:
 			return alterEntityLiving(transformedName, bytes, cr);
+		case 9:
+			return alterWorldClient(transformedName, bytes, cr);
 
 		default:
 			return bytes;
@@ -77,24 +86,30 @@ class ASMCore {
 
 		String[] names;
 		if (LoadingPlugin.runtimeDeobfEnabled) {
-			names = new String[] { "func_72945_a" };
+			names = new String[] { "func_72945_a", "func_72903_x", "func_147451_t" };
 		} else {
-			names = new String[] { "getCollidingBoundingBoxes" };
+			names = new String[] { "getCollidingBoundingBoxes", "setActivePlayerChunksAndCheckLight",
+					"func_147451_t" };
 		}
 
 		ClassNode cn = new ClassNode(ASM5);
-		cr.accept(cn, ClassReader.EXPAND_FRAMES);
+		cr.accept(cn, 0);
 
 		l: {
 			MethodNode boundingBoxes = null;
+			MethodNode playerCheckLight = null;
+			int m = 0, T = 2;
 			for (MethodNode n : cn.methods) {
 				if (names[0].equals(n.name)) {
 					boundingBoxes = n;
-					break;
+					if (++m == T) break;
+				} else if (names[1].equals(n.name)) {
+					playerCheckLight = n;
+					if (++m == T) break;
 				}
 			}
 
-			if (boundingBoxes == null)
+			if (boundingBoxes == null || playerCheckLight == null)
 				break l;
 
 			boundingBoxes.localVariables = null;
@@ -107,6 +122,23 @@ class ASMCore {
 					+ "Ljava/util/List;";
 			boundingBoxes.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "getWorldCollisionBoxes", sig, false));
 			boundingBoxes.instructions.add(new InsnNode(ARETURN));
+
+			boolean found = false;
+			for (AbstractInsnNode n = playerCheckLight.instructions.getLast(); n != null; n = n.getPrevious()) {
+				if (found && n.getOpcode() == INVOKEINTERFACE) {
+					if ("isEmpty".equals(((MethodInsnNode) n).name)) {
+						playerCheckLight.instructions.insert(n, new InsnNode(IOR));
+						playerCheckLight.instructions.insert(n, new InsnNode(IXOR));
+						playerCheckLight.instructions.insert(n, new InsnNode(ICONST_1));
+						playerCheckLight.instructions.insert(n, new FieldInsnNode(GETSTATIC, ConfigCore, "lightChunks", "Z"));
+						break;
+					}
+				}
+				if (n.getOpcode() == INVOKEVIRTUAL) {
+					if (names[2].equals(((MethodInsnNode) n).name))
+						found = true;
+				}
+			}
 
 			ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
 			cn.accept(cw);
@@ -126,7 +158,7 @@ class ASMCore {
 		}
 
 		ClassNode cn = new ClassNode(ASM5);
-		cr.accept(cn, ClassReader.EXPAND_FRAMES);
+		cr.accept(cn, 0);
 
 		for (MethodNode m : cn.methods) {
 			for (int i = 0, e = m.instructions.size(); i < e; ++i) {
@@ -147,12 +179,57 @@ class ASMCore {
 		return bytes;
 	}
 
+	private static byte[] alterWorldClient(String name, byte[] bytes, ClassReader cr) {
+
+		String[] names;
+		if (LoadingPlugin.runtimeDeobfEnabled) {
+			names = new String[] { "func_147492_c" };
+		} else {
+			names = new String[] { "func_147492_c" };
+		}
+
+		ClassNode cn = new ClassNode(ASM5);
+		cr.accept(cn, 0);
+
+		l: {
+			MethodNode m = null;
+			for (MethodNode n : cn.methods) {
+				if (names[0].equals(n.name)) {
+					m = n;
+					break;
+				}
+			}
+
+			if (m == null) {
+				break l;
+			}
+
+			m.localVariables = null;
+
+			m.instructions.clear();
+			m.instructions.add(new VarInsnNode(ALOAD, 0));
+			m.instructions.add(new VarInsnNode(ILOAD, 1));
+			m.instructions.add(new VarInsnNode(ILOAD, 2));
+			m.instructions.add(new VarInsnNode(ILOAD, 3));
+			m.instructions.add(new VarInsnNode(ALOAD, 4));
+			m.instructions.add(new VarInsnNode(ILOAD, 5));
+			String sig = "(Lnet/minecraft/client/multiplayer/WorldClient;IIILnet/minecraft/block/Block;I)Z";
+			m.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "setClientBlock", sig, false));
+			m.instructions.add(new InsnNode(IRETURN));
+
+			ClassWriter cw = new ClassWriter(0);
+			cn.accept(cw);
+			bytes = cw.toByteArray();
+		}
+		return bytes;
+	}
+
 	private static byte[] alterEntityLiving(String name, byte[] bytes, ClassReader cr) {
 
 		String[] names = { "<init>" };
 
 		ClassNode cn = new ClassNode(ASM5);
-		cr.accept(cn, ClassReader.EXPAND_FRAMES);
+		cr.accept(cn, 0);
 
 		l: {
 			MethodNode m = null;
@@ -195,7 +272,7 @@ class ASMCore {
 		}
 
 		ClassNode cn = new ClassNode(ASM5);
-		cr.accept(cn, ClassReader.EXPAND_FRAMES);
+		cr.accept(cn, 0);
 
 		l: {
 			MethodNode m = null;
@@ -230,29 +307,32 @@ class ASMCore {
 
 		String[] names;
 		if (LoadingPlugin.runtimeDeobfEnabled) {
-			names = new String[] { "func_70091_d", "func_72945_a", "func_70104_M" };
+			names = new String[] { "func_70091_d", "func_72945_a", "func_70104_M", "shouldRenderInPass" };
 		} else {
-			names = new String[] { "moveEntity", "getCollidingBoundingBoxes", "canBePushed" };
+			names = new String[] { "moveEntity", "getCollidingBoundingBoxes", "canBePushed", "shouldRenderInPass" };
 		}
 
 		name = name.replace('.', '/');
 		ClassNode cn = new ClassNode(ASM5);
-		cr.accept(cn, ClassReader.EXPAND_FRAMES);
+		cr.accept(cn, 0);
 
 		String mOwner = "net/minecraft/world/World";
 
 		l: {
 			MethodNode m = null;
+			MethodNode pass = null;
 			boolean hasMethod = false;
 			for (MethodNode n : cn.methods) {
 				if (names[0].equals(n.name)) {
 					m = n;
 				} else if ("cofh_collideCheck".equals(n.name)) {
 					hasMethod = true;
+				} else if (names[3].equals(n.name)) {
+					pass = n;
 				}
 			}
 
-			if (m == null) {
+			if (m == null || pass == null) {
 				break l;
 			}
 
@@ -272,6 +352,19 @@ class ASMCore {
 						mn.owner = HooksCore;
 					}
 				}
+			}
+
+			if (FMLLaunchHandler.side() == Side.CLIENT) {
+				InsnList list = new InsnList();
+				LabelNode label = new LabelNode();
+				list.add(new VarInsnNode(ALOAD, 0));
+				list.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "renderEntity", "(Lnet/minecraft/entity/Entity;)Z", false));
+				list.add(new JumpInsnNode(IFNE, label));
+				list.add(new InsnNode(ICONST_0));
+				list.add(new InsnNode(IRETURN));
+				list.add(label);
+
+				pass.instructions.insertBefore(pass.instructions.getFirst(), list);
 			}
 
 			if (!hasMethod) {
@@ -300,7 +393,7 @@ class ASMCore {
 		}
 
 		ClassNode cn = new ClassNode(ASM5);
-		cr.accept(cn, ClassReader.EXPAND_FRAMES);
+		cr.accept(cn, 0);
 
 		String mOwner = "net/minecraft/client/renderer/texture/TextureManager";
 
@@ -346,7 +439,7 @@ class ASMCore {
 
 		name = name.replace('.', '/');
 		ClassNode cn = new ClassNode(ASM5);
-		cr.accept(cn, ClassReader.EXPAND_FRAMES);
+		cr.accept(cn, 0);
 
 		l: {
 			boolean updated = false;
@@ -387,7 +480,7 @@ class ASMCore {
 		}
 
 		ClassNode cn = new ClassNode(ASM5);
-		cr.accept(cn, ClassReader.EXPAND_FRAMES);
+		cr.accept(cn, 0);
 
 		l: {
 			boolean updated = false;
@@ -418,7 +511,7 @@ class ASMCore {
 			mc: if (containsItem != null) {
 				// { cloning methods to get a different set of instructions to avoid erasing getEntry
 				ClassNode clone = new ClassNode(ASM5);
-				cr.accept(clone, ClassReader.EXPAND_FRAMES);
+				cr.accept(clone, 0);
 				String sig = "(J)Lnet/minecraft/util/LongHashMap$Entry;";
 				for (MethodNode m : clone.methods) {
 					String mName = m.name;

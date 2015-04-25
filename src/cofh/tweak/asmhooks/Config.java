@@ -39,12 +39,18 @@ public class Config {
 		collideEntities = Boolean.parseBoolean(config.getProperty("EntityCollisions", "true"));
 		animateTextures = Boolean.parseBoolean(config.getProperty("AnimatedTextures", "true"));
 		lightChunks = Boolean.parseBoolean(config.getProperty("ChunkLighting", "true"));
+		agressiveCulling = Boolean.parseBoolean(config.getProperty("AgressiveCulling", "false"));
+		distantCulling = Boolean.parseBoolean(config.getProperty("DistantCulling", "false"));
+		fastBlocks = Boolean.parseBoolean(config.getProperty("FastClientSetBlock", "false"));
 	}
 
 	public static boolean stackItems;
 	public static boolean collideEntities;
 	public static boolean animateTextures;
+	public static boolean fastBlocks;
 	public static boolean lightChunks;
+	public static boolean agressiveCulling;
+	public static boolean distantCulling;
 
 	@SuppressWarnings("resource")
 	public static void copyFileUsingStream(String source, File dest) throws IOException {
