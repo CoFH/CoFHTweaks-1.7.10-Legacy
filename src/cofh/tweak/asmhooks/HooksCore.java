@@ -163,10 +163,10 @@ public class HooksCore {
 	}
 
 	@SideOnly(Side.CLIENT)
-	private static long tick = -5, farEntities;
+	private static long tick, farEntities;
 
 	@SideOnly(Side.CLIENT)
-	private static TIntByteHashMap nearData = new TIntByteHashMap();
+	private static TIntByteHashMap nearData;
 
 	@SideOnly(Side.CLIENT)
 	public static boolean renderEntity(Entity ent) {
@@ -178,6 +178,9 @@ public class HooksCore {
 		long t = Minecraft.getMinecraft().entityRenderer.renderEndNanoTime;
 		if (t != tick) {
 			tick = t;
+			if (nearData == null) {
+				nearData = new TIntByteHashMap();
+			}
 			nearData.clear();
 			farEntities = 0;
 		}
