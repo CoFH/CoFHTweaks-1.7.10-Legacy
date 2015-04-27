@@ -16,6 +16,11 @@ public class ClientChunk extends Chunk {
 	}
 	private static class ChunkThread extends Thread {
 
+		public ChunkThread() {
+
+			super("Chunk Worker");
+		}
+
 		public LinkedHashList<ClientChunk> data = new LinkedHashList<ClientChunk>();
 
 		@Override
@@ -25,7 +30,7 @@ public class ClientChunk extends Chunk {
 
 				for (int i = 0; data.size() > 0; ++i) {
 					data.shift().buildSides();
-					if (i > 5) {
+					if ((i & 7) == 0) {
 						i = 0;
 						try {
 							Thread.sleep(1);
@@ -41,7 +46,7 @@ public class ClientChunk extends Chunk {
 		}
 	}
 
-	public BitSet solidSides = new BitSet(6 * 16);
+	public BitSet solidSides = new BitSet(112);
 	private BitSet[][] internalSides = new BitSet[16][6];
 
 	private static void init(BitSet[][] internalSides) {
@@ -75,8 +80,9 @@ public class ClientChunk extends Chunk {
 
 		if (y > 255 || y < 0)
 			return;
-		int yp = 1 + (y >> 4);
-		BitSet[] internalSides = this.internalSides[yp - 1];
+		int yp = y >> 4;
+		BitSet[] internalSides = this.internalSides[yp];
+		yp *= 8;
 		if (block == null) {
 			block = getBlock(x, y, z);
 		}
@@ -87,17 +93,17 @@ public class ClientChunk extends Chunk {
 			BitSet side = internalSides[0];
 			side.set(x + z * 16, solid);
 			if (solid) {
-				solid = side.nextClearBit(0) == 256;
+				solid = side.nextClearBit(0) >= 256;
 			}
-			solidSides.set(yp * 1, solid);
+			solidSides.set(yp + 0, solid);
 		} else if (y == 15) {
 			boolean solid = block.isOpaqueCube();
 			BitSet side = internalSides[1];
 			side.set(x + z * 16, solid);
 			if (solid) {
-				solid = side.nextClearBit(0) == 256;
+				solid = side.nextClearBit(0) >= 256;
 			}
-			solidSides.set(yp * 2, solid);
+			solidSides.set(yp + 1, solid);
 		}
 
 		if (x == 0) {
@@ -105,17 +111,17 @@ public class ClientChunk extends Chunk {
 			BitSet side = internalSides[2];
 			side.set(y + z * 16, solid);
 			if (solid) {
-				solid = side.nextClearBit(0) == 256;
+				solid = side.nextClearBit(0) >= 256;
 			}
-			solidSides.set(yp * 3, solid);
+			solidSides.set(yp + 2, solid);
 		} else if (x == 15) {
 			boolean solid = block.isOpaqueCube();
 			BitSet side = internalSides[3];
 			side.set(y + z * 16, solid);
 			if (solid) {
-				solid = side.nextClearBit(0) == 256;
+				solid = side.nextClearBit(0) >= 256;
 			}
-			solidSides.set(yp * 4, solid);
+			solidSides.set(yp + 3, solid);
 		}
 
 		if (z == 0) {
@@ -123,17 +129,17 @@ public class ClientChunk extends Chunk {
 			BitSet side = internalSides[4];
 			side.set(x + y * 16, solid);
 			if (solid) {
-				solid = side.nextClearBit(0) == 256;
+				solid = side.nextClearBit(0) >= 256;
 			}
-			solidSides.set(yp * 5, solid);
+			solidSides.set(yp + 4, solid);
 		} else if (z == 15) {
 			boolean solid = block.isOpaqueCube();
 			BitSet side = internalSides[5];
 			side.set(x + y * 16, solid);
 			if (solid) {
-				solid = side.nextClearBit(0) == 256;
+				solid = side.nextClearBit(0) >= 256;
 			}
-			solidSides.set(yp * 6, solid);
+			solidSides.set(yp + 5, solid);
 		}
 	}
 
