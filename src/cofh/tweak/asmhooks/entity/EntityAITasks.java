@@ -1,6 +1,6 @@
 package cofh.tweak.asmhooks.entity;
 
-import cofh.repack.cofh.lib.util.ArrayHashList;
+import cofh.tweak.IdentityArrayHashList;
 
 import java.util.ArrayList;
 
@@ -12,7 +12,7 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 	public EntityAITasks(Profiler p_i1628_1_) {
 
 		super(p_i1628_1_);
-		executingTaskEntries = new ArrayHashList<EntityAITaskEntry>();
+		executingTaskEntries = new IdentityArrayHashList<EntityAITaskEntry>();
 		tickRate = 10;
 	}
 

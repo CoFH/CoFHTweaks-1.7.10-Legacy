@@ -218,7 +218,7 @@ public class HooksCore {
 			Chunk chunk = world.getChunkFromChunkCoords(x >> 4, z >> 4);
 			Block block1 = chunk.getBlock(x & 15, y, z & 15);
 			if (block1 == block) {
-				if (chunk.getBlockMetadata(x, y, z) == meta) {
+				if (chunk.getBlockMetadata(x & 15, y, z & 15) == meta) {
 					return true;
 				}
 			}

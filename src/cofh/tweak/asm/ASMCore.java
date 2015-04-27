@@ -51,6 +51,7 @@ class ASMCore {
 		hashes.put("net.minecraft.world.World", (byte) 7);
 		hashes.put("net.minecraft.entity.EntityLiving", (byte) 8);
 		hashes.put("net.minecraft.client.multiplayer.WorldClient", (byte) 9);
+		hashes.put("net.minecraft.client.multiplayer.ChunkProviderClient", (byte) 10);
 	}
 
 	static byte[] transform(int index, String name, String transformedName, byte[] bytes) {
@@ -76,6 +77,8 @@ class ASMCore {
 			return alterEntityLiving(transformedName, bytes, cr);
 		case 9:
 			return alterWorldClient(transformedName, bytes, cr);
+		case 10:
+			return alterCPC(transformedName, bytes, cr);
 
 		default:
 			return bytes;
@@ -176,6 +179,52 @@ class ASMCore {
 		cn.accept(cw);
 		bytes = cw.toByteArray();
 
+		return bytes;
+	}
+
+	private static byte[] alterCPC(String name, byte[] bytes, ClassReader cr) {
+
+		String[] names;
+		if (LoadingPlugin.runtimeDeobfEnabled) {
+			names = new String[] { "func_73158_c" };
+		} else {
+			names = new String[] { "loadChunk" };
+		}
+
+		ClassNode cn = new ClassNode(ASM5);
+		cr.accept(cn, 0);
+
+		l: {
+			MethodNode m = null;
+			for (MethodNode n : cn.methods) {
+				if (names[0].equals(n.name)) {
+					m = n;
+					break;
+				}
+			}
+
+			if (m == null) {
+				break l;
+			}
+
+			for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+				if (n.getOpcode() == NEW) {
+					if ("net/minecraft/world/chunk/Chunk".equals(((TypeInsnNode)n).desc)) {
+						((TypeInsnNode)n).desc = "cofh/tweak/asmhooks/world/ClientChunk";
+						for (; n != null; n = n.getNext()) {
+							if (n.getOpcode() == INVOKESPECIAL) {
+								((MethodInsnNode)n).owner = "cofh/tweak/asmhooks/world/ClientChunk";
+								break;
+							}
+						}
+					}
+				}
+			}
+
+			ClassWriter cw = new ClassWriter(0);
+			cn.accept(cw);
+			bytes = cw.toByteArray();
+		}
 		return bytes;
 	}
 
