@@ -77,10 +77,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 			if (worldrenderer != null) {
 
+				if (!worldrenderer.isVisible) {
+					continue;
+				}
 				if (!worker.working) {
-					if (!worldrenderer.isVisible) {
-						continue;
-					}
 					if (!worldrenderer.isWaitingOnOcclusionQuery) {
 						worldrenderer.isVisible = false;
 						continue;
@@ -185,31 +185,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		return l;
 	}
 
-	@Override
-	public void setWorldAndLoadRenderers(WorldClient world) {
-
-		worker.setWorld(this, world);
-		super.setWorldAndLoadRenderers(world);
-	}
-
-	@Override
-	public void loadRenderers() {
-
-		worker.lock();
-		super.loadRenderers();
-		worker.working = true;
-		worker.unlock();
-	}
-
-	@Override
-	protected void markRenderersForNewPosition(int x, int y, int z) {
-
-		worker.lock();
-		markRenderers(x, y, z);
-		worker.working = true;
-		worker.unlock();
-	}
-
 	private void markRenderers(int x, int y, int z) {
 
 		x -= 8;
@@ -284,6 +259,31 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				}
 			}
 		}
+	}
+
+	@Override
+	public void setWorldAndLoadRenderers(WorldClient world) {
+
+		worker.setWorld(this, world);
+		super.setWorldAndLoadRenderers(world);
+	}
+
+	@Override
+	public void loadRenderers() {
+
+		worker.lock();
+		super.loadRenderers();
+		worker.working = true;
+		worker.unlock();
+	}
+
+	@Override
+	protected void markRenderersForNewPosition(int x, int y, int z) {
+
+		worker.lock();
+		markRenderers(x, y, z);
+		worker.working = true;
+		worker.unlock();
 	}
 
 	private static RenderWorker worker = new RenderWorker();
@@ -366,6 +366,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						sleep(10000);
 						break l;
 					}
+					sleep(300);
 					lock.lockInterruptibly();
 					WorldRenderer center;
 					WorldClient theWorld = this.theWorld;
