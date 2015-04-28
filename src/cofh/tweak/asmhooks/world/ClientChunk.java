@@ -30,10 +30,10 @@ public class ClientChunk extends Chunk {
 
 				for (int i = 0; data.size() > 0; ++i) {
 					data.shift().buildSides();
-					if ((i & 7) == 0) {
+					if ((i & 3) == 0) {
 						i = 0;
 						try {
-							Thread.sleep(1);
+							Thread.sleep(3);
 						} catch (InterruptedException e) {
 						}
 					}
