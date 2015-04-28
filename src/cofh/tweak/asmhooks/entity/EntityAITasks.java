@@ -1,6 +1,7 @@
 package cofh.tweak.asmhooks.entity;
 
 import cofh.tweak.IdentityArrayHashList;
+import cofh.tweak.asmhooks.Config;
 
 import java.util.ArrayList;
 
@@ -24,7 +25,7 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
         this.theProfiler.startSection("processing");
         EntityAITaskEntry entityaitaskentry;
 
-        l: if (this.tickCount++ % this.tickRate == 0) {
+        if (this.tickCount++ % this.tickRate == 0) {
             this.theProfiler.startSection("full");
 
             for (int i = 0, e = this.taskEntries.size(); i < e; ++i) {
@@ -57,12 +58,12 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
         }
         else
         {
-        	if (MinecraftServer.getServer() != null) {
+        	if (Config.agressiveAICulling && MinecraftServer.getServer() != null) {
         		long[] data = MinecraftServer.getServer().tickTimeArray;
         		int t = (MinecraftServer.getServer().getTickCounter() % 100) - 1;
         		if (t < 0) t = data.length - 1;
         		long p = data[t];
-        		if (p > 40000000L) break l;
+        		if (p > 40000000L) return;
         	}
             this.theProfiler.startSection("tick");
 

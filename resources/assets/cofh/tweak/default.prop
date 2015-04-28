@@ -18,3 +18,6 @@ DistantCulling=false
 
 # If true, the client will not process lighting updates when blocks are changed via packets
 FastClientSetBlock=false
+
+# If true, the server-side AI will not process as frequently. On heavily burdened servers this will manifest as mobs not doing anything every few ticks
+AgressiveAIReduction=false

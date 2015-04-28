@@ -42,6 +42,7 @@ public class Config {
 		agressiveCulling = Boolean.parseBoolean(config.getProperty("AgressiveCulling", "false"));
 		distantCulling = Boolean.parseBoolean(config.getProperty("DistantCulling", "false"));
 		fastBlocks = Boolean.parseBoolean(config.getProperty("FastClientSetBlock", "false"));
+		agressiveAICulling = Boolean.parseBoolean(config.getProperty("AgressiveAIReduction", "false"));
 	}
 
 	public static boolean stackItems;
@@ -51,6 +52,7 @@ public class Config {
 	public static boolean lightChunks;
 	public static boolean agressiveCulling;
 	public static boolean distantCulling;
+	public static boolean agressiveAICulling;
 
 	@SuppressWarnings("resource")
 	public static void copyFileUsingStream(String source, File dest) throws IOException {
