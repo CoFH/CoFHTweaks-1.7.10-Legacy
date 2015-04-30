@@ -331,10 +331,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		if (rebuild) {
 			prevRotationYaw = -9999;
-			worker.lock();
+			/*worker.lock();
 			worker.working = true;
 			worker.run(true);
-			worker.unlock();
+			worker.unlock();//*/
 		}
 	}
 
@@ -451,10 +451,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							working = true;
 							clean = false;
 						}
-						for (WorldRenderer rend : render.worldRenderers) {
-							rend.isWaitingOnOcclusionQuery = false;
-						}
 						if (!immediate) {
+							for (WorldRenderer rend : render.worldRenderers) {
+								rend.isWaitingOnOcclusionQuery = false;
+							}
 							lock.unlock();
 							sleep(1);
 							lock.lockInterruptibly();
