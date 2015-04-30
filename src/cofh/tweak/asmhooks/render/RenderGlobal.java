@@ -484,11 +484,12 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal()];
 							for (int p = 0; p < 6; ++p) {
 								RenderPosition pos = bias[p];
-								if (pos == back || !faces.contains(pos.facing))
+								if (!faces.contains(pos.facing))
 									continue;
 								WorldRenderer t = getRender(center.posX + pos.x, center.posY + pos.y, center.posZ + pos.z);
-								if (t != null && log.add(t))
-									queue.add(new CullInfo(t, pos, (render.renderDistanceChunks >> 1) * (immediate ? 1 : -1)));
+								if (t == null || !log.add(t))
+									continue;
+								queue.add(new CullInfo(t, pos, (render.renderDistanceChunks >> 1) * (immediate ? 1 : -1) - 2));
 							}
 						}
 						working = queue.size() > 0;
