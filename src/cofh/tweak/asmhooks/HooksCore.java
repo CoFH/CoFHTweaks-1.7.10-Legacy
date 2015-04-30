@@ -1,5 +1,6 @@
 package cofh.tweak.asmhooks;
 
+import cofh.tweak.CoFHTweaks;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
@@ -25,6 +26,11 @@ import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
 
 public class HooksCore {
+
+	public static String getBrand() {
+
+		return "CoFHTweaks v" + CoFHTweaks.version.substring(CoFHTweaks.version.indexOf('R') + 1);
+	}
 
 	@SuppressWarnings("unused")
 	public static void stackItems(EntityItem entity) {

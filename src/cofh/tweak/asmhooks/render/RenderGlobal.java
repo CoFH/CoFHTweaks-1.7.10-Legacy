@@ -55,8 +55,11 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	@Override
 	public boolean updateRenderers(EntityLivingBase view, boolean p_72716_2_) {
 
-		if (MathHelper.floor_float(view.rotationYaw) >> 2 != prevRotationYaw ||
-				MathHelper.floor_float(view.rotationPitch + 45) >> 3 != prevRotationPitch) {
+		int yaw = MathHelper.floor_float(view.rotationYaw) >> 2;
+		int pitch = MathHelper.floor_float(view.rotationPitch + 45) >> 3;
+		if (yaw != prevRotationYaw || pitch != prevRotationPitch) {
+			prevRotationYaw = yaw;
+			prevRotationPitch = pitch;
 			worker.clean = true;
 			worker.interrupt();
 		}
@@ -78,7 +81,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		}
 
 		for (int k = 0; k < i; ++k) {
-			WorldRenderer worldrenderer = (WorldRenderer) worldRenderersToUpdate.remove(0);
+			WorldRenderer worldrenderer = worldRenderersToUpdateList.shift();
 
 			if (worldrenderer != null) {
 
@@ -415,8 +418,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						sleep(10000);
 						break l;
 					}
-					render.prevRotationPitch = MathHelper.floor_float(view.rotationPitch + 45) >> 3;
-					render.prevRotationYaw = MathHelper.floor_float(view.rotationYaw) >> 2;
 					sleep(300);
 					lock.lockInterruptibly();
 					{
@@ -468,7 +469,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						WorldRenderer rend = info.rend;
 						rend.isVisible = rend.isWaitingOnOcclusionQuery = true;
 						Chunk chunk = theWorld.getChunkFromBlockCoords(rend.posX, rend.posZ);
-						if ((info.count >> 0) <= render.renderDistanceChunks && chunk instanceof ClientChunk) {
+						if (info.count <= render.renderDistanceChunks && chunk instanceof ClientChunk) {
 							VisGraph sides = ((ClientChunk) chunk).visibility[rend.posY >> 4];
 							RenderPosition opp = info.pos.getOpposite();
 							for (int p = 0; p < 6; ++p) {

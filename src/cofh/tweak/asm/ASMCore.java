@@ -52,6 +52,7 @@ class ASMCore {
 		hashes.put("net.minecraft.entity.EntityLiving", (byte) 8);
 		hashes.put("net.minecraft.client.multiplayer.WorldClient", (byte) 9);
 		hashes.put("net.minecraft.client.multiplayer.ChunkProviderClient", (byte) 10);
+		hashes.put("cpw.mods.fml.common.FMLCommonHandler", (byte) 11);
 	}
 
 	static byte[] transform(int index, String name, String transformedName, byte[] bytes) {
@@ -79,6 +80,8 @@ class ASMCore {
 			return alterWorldClient(transformedName, bytes, cr);
 		case 10:
 			return alterCPC(transformedName, bytes, cr);
+		case 11:
+			return alterbranding(transformedName, bytes, cr);
 
 		default:
 			return bytes;
@@ -171,6 +174,48 @@ class ASMCore {
 					if (names[0].equals(mn.name)) {
 						mn.name = "cofh_collideCheck";
 					}
+				}
+			}
+		}
+
+		ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+		cn.accept(cw);
+		bytes = cw.toByteArray();
+
+		return bytes;
+	}
+	private static byte[] alterbranding(String name, byte[] bytes, ClassReader cr) {
+
+		String names = "computeBranding";
+
+		ClassNode cn = new ClassNode(ASM5);
+		cr.accept(cn, 0);
+
+		l: for (MethodNode m : cn.methods) {
+			if (!names.equals(m.name))
+				continue;
+			for (int i = 0, e = m.instructions.size(); i < e; ++i) {
+				AbstractInsnNode n = m.instructions.get(i);
+				if (n.getType() == AbstractInsnNode.METHOD_INSN) {
+					MethodInsnNode mn = (MethodInsnNode) n;
+					if (!"callForgeMethod".equals(mn.name)) {
+						continue;
+					}
+					if (!"cpw/mods/fml/common/FMLCommonHandler".equals(mn.owner)) {
+						continue;
+					}
+					if (!"(Ljava/lang/String;)Ljava/lang/Object;".equals(mn.desc)) {
+						continue;
+					}
+					mn = new MethodInsnNode(INVOKESTATIC, HooksCore, "getBrand", "()Ljava/lang/String;", false);
+					m.instructions.insert(n.getNext().getNext(), mn);
+					m.instructions.insertBefore(n = mn, new VarInsnNode(ALOAD, 1));
+					mn = new MethodInsnNode(INVOKEVIRTUAL, null, "add", null, false);
+					mn.owner = "com/google/common/collect/ImmutableList$Builder";
+					mn.desc = "(Ljava/lang/Object;)Lcom/google/common/collect/ImmutableList$Builder;";
+					m.instructions.insert(n, mn);
+					m.instructions.insert(mn, new InsnNode(POP));
+					break l;
 				}
 			}
 		}
