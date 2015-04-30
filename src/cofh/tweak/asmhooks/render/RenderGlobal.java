@@ -1,10 +1,12 @@
 package cofh.tweak.asmhooks.render;
 
 import cofh.repack.cofh.lib.util.IdentityLinkedHashList;
+import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
 import cofh.tweak.IdentityArrayHashList;
 import cofh.tweak.asmhooks.world.ClientChunk;
 
-import java.util.BitSet;
+import java.util.ArrayDeque;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 import net.minecraft.client.Minecraft;
@@ -12,14 +14,15 @@ import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.renderer.culling.ICamera;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.chunk.Chunk;
 
 public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 	private int rendersPerFrame = 30;
-	private float prevRotationPitch = -9999.0F;
-	private float prevRotationYaw = -9999.0F;
+	private int prevRotationPitch = -9999;
+	private int prevRotationYaw = -9999;
 	private boolean updated = false, prevUpdated = false;
 	private IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList;
 
@@ -52,9 +55,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	@Override
 	public boolean updateRenderers(EntityLivingBase view, boolean p_72716_2_) {
 
-		if (view.rotationYaw != prevRotationYaw || view.rotationPitch != prevRotationPitch) {
-			worker.interrupt();
+		if (MathHelper.floor_float(view.rotationYaw) >> 2 != prevRotationYaw ||
+				MathHelper.floor_float(view.rotationPitch + 45) >> 3 != prevRotationPitch) {
 			worker.clean = true;
+			worker.interrupt();
 		}
 		int m = worldRenderersToUpdate.size();
 		int i = Math.min(m, rendersPerFrame);
@@ -78,6 +82,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 			if (worldrenderer != null) {
 
+				if (worldrenderer.isInitialized)
 				if (!worldrenderer.isInFrustum || !worldrenderer.isVisible) {
 					worldrenderer.needsUpdate = false;
 					continue;
@@ -90,6 +95,20 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		theWorld.theProfiler.endSection();
 		return i <= rendersPerFrame;
+	}
+
+	@Override
+	public String getDebugInfoRenders() {
+
+		StringBuilder r = new StringBuilder(3 + 4 + 1 + 4 + 5 + 4 + 5 + 4 + 5 + 4 + 5 + 3 + 5 + 2 + 2);
+		r.append("C: ").append(renderersBeingRendered).append('/').append(renderersLoaded);
+		r.append(". F: ").append(renderersBeingClipped);
+		r.append(", O: ").append(renderersBeingOccluded);
+		r.append(", E: ").append(renderersSkippingRenderPass);
+		r.append("; I: ").append(dummyRenderInt);
+		r.append(", T: ").append(rendersPerFrame);
+		r.append(" |").append(worker.working ? 'Y' : 'N');
+		return r.toString();
 	}
 
 	@Override
@@ -126,7 +145,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			if (pass == 0) {
 				++renderersLoaded;
 
-				if (!rend.isInFrustum) {
+				if (!rend.isInitialized) {
+					++dummyRenderInt;
+				} else if (!rend.isInFrustum) {
 					++renderersBeingClipped;
 				} else if (!rend.isVisible) {
 					++renderersBeingOccluded;
@@ -253,34 +274,40 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		for (int i3 = k1; i3 <= j2; ++i3) {
 			int j3 = i3 % this.renderChunksWide;
 
-            if (j3 < 0) {
-                j3 += this.renderChunksWide;
-            }
+			if (j3 < 0) {
+				j3 += this.renderChunksWide;
+			}
 
 			for (int k3 = l1; k3 <= k2; ++k3) {
 				int l3 = k3 % this.renderChunksTall;
 
-                if (l3 < 0) {
-                    l3 += this.renderChunksTall;
-                }
+				if (l3 < 0) {
+					l3 += this.renderChunksTall;
+				}
 
 				for (int i4 = i2; i4 <= l2; ++i4) {
 					int j4 = i4 % this.renderChunksDeep;
 
-                    if (j4 < 0) {
-                        j4 += this.renderChunksDeep;
-                    }
+					if (j4 < 0) {
+						j4 += this.renderChunksDeep;
+					}
 
 					int k4 = (j4 * renderChunksTall + l3) * renderChunksWide + j3;
 					WorldRenderer worldrenderer = worldRenderers[k4];
 
 					if (!worldrenderer.needsUpdate) {
+						worldrenderer.markDirty();
 						if (worldrenderer.distanceToEntitySquared(mc.renderViewEntity) > 272.0F) {
 							worldRenderersToUpdate.add(worldrenderer);
 						} else {
+							Chunk chunk = theWorld.getChunkFromBlockCoords(worldrenderer.posX, worldrenderer.posZ);
+							if (chunk instanceof ClientChunk) {
+								if (((ClientChunk)chunk).visibility[worldrenderer.posY >> 4].isDirty()) {
+									prevRotationYaw = -9999;
+								}
+							}
 							worldRenderersToUpdateList.unshift(worldrenderer);
 						}
-						worldrenderer.markDirty();
 					}
 				}
 			}
@@ -346,7 +373,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		public volatile boolean working = false, clean = false;
 		private final ReentrantLock lock = new ReentrantLock();
-		private IdentityArrayHashList<WorldRenderer> queue = new IdentityArrayHashList<WorldRenderer>();
+		private ArrayDeque<CullInfo> queue = new ArrayDeque<CullInfo>();
+		private IdentityArrayHashList<WorldRenderer> log = new IdentityArrayHashList<WorldRenderer>();
 		private WorldClient theWorld;
 		private RenderGlobal render;
 
@@ -378,16 +406,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			return render.worldRenderers[(z * render.renderChunksTall + y) * render.renderChunksWide + x];
 		}
 
-		private void checkOcclusion(WorldRenderer rend, int side, int x, int z) {
-
-			Chunk chunk = theWorld.getChunkFromBlockCoords(rend.posX + x, rend.posZ + z);
-			if (chunk instanceof ClientChunk) {
-				rend.isVisible |= !((ClientChunk) chunk).solidSides.get(side);
-			} else {
-				rend.isVisible = true;
-			}
-		}
-
 		public void run(boolean d) {
 
 			//for (;;)
@@ -398,13 +416,15 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						sleep(10000);
 						break l;
 					}
-					render.prevRotationPitch = view.rotationPitch;
-					render.prevRotationYaw = view.rotationYaw;
+					render.prevRotationPitch = MathHelper.floor_float(view.rotationPitch + 45) >> 3;
+					render.prevRotationYaw = MathHelper.floor_float(view.rotationYaw) >> 2;
 					sleep(300);
 					lock.lockInterruptibly();
-					if (clean) {
-						clean = false;
-						working = true;
+					{
+						if (clean) {
+							working = true;
+							clean = false;
+						}
 						for (WorldRenderer rend : render.worldRenderers) {
 							rend.isWaitingOnOcclusionQuery = false;
 						}
@@ -414,53 +434,56 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					}
 					WorldRenderer center;
 					WorldClient theWorld = this.theWorld;
-					IdentityArrayHashList<WorldRenderer> queue = this.queue;
+					ArrayDeque<CullInfo> queue = this.queue;
+					RenderPosition back = RenderPosition.getBackFacingFromVector(view);
 					{
 						int x = MathHelper.floor_double(view.posX);
 						int y = MathHelper.floor_double(view.posY + view.getEyeHeight());
 						int z = MathHelper.floor_double(view.posZ);
 						center = getRender(x, y, z);
-						if (center == null)
+						if (center == null) {
 							working = false;
-						queue.add(center);
-					}
-					RenderPosition back = RenderPosition.getBackFacingFromVector(view);
-					for (int i = 0; working && !isInterrupted(); working = ++i < queue.size()) {
-						WorldRenderer rend = queue.get(i);
-						int yp = (rend.posY >> 4) * 8;
-						rend.isWaitingOnOcclusionQuery = true;
-						Chunk chunk = theWorld.getChunkFromBlockCoords(rend.posX, rend.posZ);
-						rend.isVisible = true;
+							lock.unlock();
+							break l;
+						}
+						center.isVisible = center.isWaitingOnOcclusionQuery = true;
+						log.add(center);
+						Chunk chunk = theWorld.getChunkFromBlockCoords(center.posX, center.posZ);
 						if (chunk instanceof ClientChunk) {
-							rend.isVisible = rend == center;
-							BitSet solidSides = ((ClientChunk) chunk).solidSides;
-							rend.isVisible |= !solidSides.get((yp + 8) + 0);
-							if (yp > 0)
-								rend.isVisible |= !solidSides.get((yp - 8) + 1);
+							VisGraph sides = ((ClientChunk) chunk).visibility[center.posY >> 4];
+							Set<EnumFacing> faces = sides.getVisibleFacingsFrom(x, y, z);
+							RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal()];
 							for (int p = 0; p < 6; ++p) {
-								if (!solidSides.get(yp + p)) {
-									RenderPosition pos = RenderPosition.POSITIONS[p];
-									if (pos == back)
-										continue;
+								RenderPosition pos = bias[p];
+								if (pos == back || !faces.contains(pos.facing))
+									continue;
+								WorldRenderer t = getRender(center.posX + pos.x, center.posY + pos.y, center.posZ + pos.z);
+								if (t != null && log.add(t))
+									queue.add(new CullInfo(t, pos, -(render.renderDistanceChunks >> 1)));
+							}
+						}
+						working = queue.size() > 0;
+					}
+					for (int i = 0; working && !isInterrupted(); working = !queue.isEmpty()) {
+						CullInfo info = queue.pollLast();
+						WorldRenderer rend = info.rend;
+						rend.isVisible = rend.isWaitingOnOcclusionQuery = true;
+						Chunk chunk = theWorld.getChunkFromBlockCoords(rend.posX, rend.posZ);
+						if ((info.count >> 0) <= render.renderDistanceChunks && chunk instanceof ClientChunk) {
+							VisGraph sides = ((ClientChunk) chunk).visibility[rend.posY >> 4];
+							RenderPosition opp = info.pos.getOpposite();
+							for (int p = 0; p < 6; ++p) {
+								RenderPosition pos = RenderPosition.POSITIONS_BIAS[info.pos.ordinal() ^ 1][p];
+								if (pos == back || pos == opp)
+									continue;
+								if (sides.getVisibility().isVisible(opp.facing, pos.facing)) {
 									WorldRenderer t = getRender(rend.posX + pos.x, rend.posY + pos.y, rend.posZ + pos.z);
-									if (t != null)
-										queue.add(t);
+									if (t != null && log.add(t))
+										queue.add(new CullInfo(t, pos, info.count + 1));
 								}
 							}
 						}
-						if (!rend.isVisible) {
-							checkOcclusion(rend, yp + 2, 16, 0);
-						}
-						if (!rend.isVisible) {
-							checkOcclusion(rend, yp + 3, -1, 0);
-						}
-						if (!rend.isVisible) {
-							checkOcclusion(rend, yp + 4, 0, 16);
-						}
-						if (!rend.isVisible) {
-							checkOcclusion(rend, yp + 5, 0, -1);
-						}
-						if ((i & 7) == 0) {
+						if ((++i & 63) == 0) {
 							lock.unlock();
 							sleep(1);
 							lock.lockInterruptibly();
@@ -474,34 +497,95 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					}
 					working = false;
 					queue.clear();
+					log.clear();
 					lock.unlock();
 					sleep(6000);
 				} catch (InterruptedException e) {
 				}
 			}
 		}
+
+		private static class CullInfo {
+
+			final int count;
+			final WorldRenderer rend;
+			final RenderPosition pos;
+
+			public CullInfo(WorldRenderer rend, RenderPosition pos, int count) {
+
+				this.count = count;
+				this.rend = rend;
+				this.pos = pos;
+			}
+		}
 	}
 
 	private static enum RenderPosition {
-		DOWN(0, -1, 0),
-		UP(0, 16, 0),
-		WEST(-1, 0, 0),
-		EAST(16, 0, 0),
-		NORTH(0, 0, -1),
-		SOUTH(0, 0, 16);
+		DOWN(EnumFacing.DOWN, 0, -1, 0),
+		UP(EnumFacing.UP, 0, 16, 0),
+		WEST(EnumFacing.WEST, -1, 0, 0),
+		EAST(EnumFacing.EAST, 16, 0, 0),
+		NORTH(EnumFacing.NORTH, 0, 0, -1),
+		SOUTH(EnumFacing.SOUTH, 0, 0, 16);
 
 		public static final RenderPosition[] POSITIONS = values();
+		public static final RenderPosition[][] POSITIONS_BIAS = new RenderPosition[6][6];
+		public static final RenderPosition[] FROM_FACING = new RenderPosition[6];
+		static {
+			for (int i = 0; i < 6; ++i) {
+				RenderPosition pos = POSITIONS[i];
+				FROM_FACING[pos.facing.ordinal()] = pos;
+				RenderPosition[] bias = POSITIONS_BIAS[i];
+				int j = 0;
+				switch (pos) {
+				case DOWN:
+				case UP:
+					bias[j++] = pos;
+					bias[j++] = NORTH;
+					bias[j++] = SOUTH;
+					bias[j++] = EAST;
+					bias[j++] = WEST;
+					bias[j++] = pos.getOpposite();
+					break;
+				case WEST:
+				case EAST:
+					bias[j++] = pos;
+					bias[j++] = UP;
+					bias[j++] = NORTH;
+					bias[j++] = SOUTH;
+					bias[j++] = DOWN;
+					bias[j++] = pos.getOpposite();
+					break;
+				case NORTH:
+				case SOUTH:
+					bias[j++] = pos;
+					bias[j++] = UP;
+					bias[j++] = EAST;
+					bias[j++] = WEST;
+					bias[j++] = DOWN;
+					bias[j++] = pos.getOpposite();
+					break;
+				}
+			}
+		}
 
 		public final int x, y, z;
+		public final EnumFacing facing;
 
-		RenderPosition(int x, int y, int z) {
+		RenderPosition(EnumFacing face, int x, int y, int z) {
 
+			this.facing = face;
 			this.x = x;
 			this.y = y;
 			this.z = z;
 			_x = x > 0 ? 1 : x;
 			_y = y > 0 ? 1 : y;
 			_z = z > 0 ? 1 : z;
+		}
+
+		public RenderPosition getOpposite() {
+
+			return POSITIONS[ordinal() ^ 1];
 		}
 
 		private final int _x, _y, _z;

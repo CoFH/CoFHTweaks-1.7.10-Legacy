@@ -1,8 +1,7 @@
 package cofh.tweak.asmhooks.world;
 
 import cofh.repack.cofh.lib.util.LinkedHashList;
-
-import java.util.BitSet;
+import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
 
 import net.minecraft.block.Block;
 import net.minecraft.world.World;
@@ -46,101 +45,44 @@ public class ClientChunk extends Chunk {
 		}
 	}
 
-	public BitSet solidSides = new BitSet(112);
-	private BitSet[][] internalSides = new BitSet[16][6];
+	public VisGraph[] visibility = new VisGraph[16];
 
-	private static void init(BitSet[][] internalSides) {
+	private static void init(VisGraph[] internalSides) {
 
 		for (int i = 0; i < 16; ++i) {
-			for (int j = 0; j < 6; ++j) {
-				internalSides[i][j] = new BitSet(256);
-			}
+			internalSides[i] = new VisGraph();
 		}
 	}
 
 	public ClientChunk(World world, int x, int z) {
 
 		super(world, x, z);
-		init(internalSides);
+		init(visibility);
 	}
 
 	public ClientChunk(World world, Block[] blocks, int x, int z) {
 
 		super(world, blocks, x, z);
-		init(internalSides);
+		init(visibility);
 	}
 
 	public ClientChunk(World world, Block[] blocks, byte[] metas, int x, int z) {
 
 		super(world, blocks, metas, x, z);
-		init(internalSides);
+		init(visibility);
 	}
 
 	void checkPosSolid(int x, int y, int z, Block block) {
 
 		if (y > 255 || y < 0)
 			return;
-		int yp = y >> 4;
-		BitSet[] internalSides = this.internalSides[yp];
-		yp *= 8;
 		if (block == null) {
 			block = getBlock(x, y, z);
 		}
+		VisGraph chunk = this.visibility[y >> 4];
 		y &= 15;
 
-		if (y == 0) {
-			boolean solid = block.isOpaqueCube();
-			BitSet side = internalSides[0];
-			side.set(x + z * 16, solid);
-			if (solid) {
-				solid = side.nextClearBit(0) >= 256;
-			}
-			solidSides.set(yp + 0, solid);
-		} else if (y == 15) {
-			boolean solid = block.isOpaqueCube();
-			BitSet side = internalSides[1];
-			side.set(x + z * 16, solid);
-			if (solid) {
-				solid = side.nextClearBit(0) >= 256;
-			}
-			solidSides.set(yp + 1, solid);
-		}
-
-		if (x == 0) {
-			boolean solid = block.isOpaqueCube();
-			BitSet side = internalSides[2];
-			side.set(y + z * 16, solid);
-			if (solid) {
-				solid = side.nextClearBit(0) >= 256;
-			}
-			solidSides.set(yp + 2, solid);
-		} else if (x == 15) {
-			boolean solid = block.isOpaqueCube();
-			BitSet side = internalSides[3];
-			side.set(y + z * 16, solid);
-			if (solid) {
-				solid = side.nextClearBit(0) >= 256;
-			}
-			solidSides.set(yp + 3, solid);
-		}
-
-		if (z == 0) {
-			boolean solid = block.isOpaqueCube();
-			BitSet side = internalSides[4];
-			side.set(x + y * 16, solid);
-			if (solid) {
-				solid = side.nextClearBit(0) >= 256;
-			}
-			solidSides.set(yp + 4, solid);
-		} else if (z == 15) {
-			boolean solid = block.isOpaqueCube();
-			BitSet side = internalSides[5];
-			side.set(x + y * 16, solid);
-			if (solid) {
-				solid = side.nextClearBit(0) >= 256;
-			}
-			solidSides.set(yp + 5, solid);
-		}
+		chunk.setOpaque(x, y, z, block.isOpaqueCube());
 	}
 
 	@Override
