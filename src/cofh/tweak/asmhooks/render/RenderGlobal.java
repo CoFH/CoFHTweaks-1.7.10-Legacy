@@ -317,7 +317,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						} else {
 							Chunk chunk = theWorld.getChunkFromBlockCoords(worldrenderer.posX, worldrenderer.posZ);
 							if (chunk instanceof ClientChunk) {
-								if (((ClientChunk)chunk).visibility[worldrenderer.posY >> 4].isDirty()) {
+								if (((ClientChunk) chunk).visibility[worldrenderer.posY >> 4].isDirty()) {
 									worldrenderer.glOcclusionQuery = -1;
 									rebuild = true;
 								}
@@ -331,10 +331,12 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		if (rebuild) {
 			prevRotationYaw = -9999;
-			/*worker.lock();
-			worker.working = true;
-			worker.run(true);
-			worker.unlock();//*/
+			/*
+			 * worker.lock();
+			 * worker.working = true;
+			 * worker.run(true);
+			 * worker.unlock();//
+			 */
 		}
 	}
 
@@ -471,7 +473,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						center = getRender(x, y, z);
 						if (center == null) {
 							working = false;
-							lock.unlock();
+							if (!immediate)
+								lock.unlock();
 							break l;
 						}
 						center.needsUpdate |= !center.isVisible;
@@ -510,14 +513,30 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						if (info.count <= render.renderDistanceChunks && chunk instanceof ClientChunk) {
 							VisGraph sides = ((ClientChunk) chunk).visibility[rend.posY >> 4];
 							RenderPosition opp = info.pos.getOpposite();
+							RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[opp.ordinal()];
 							for (int p = 0; p < 6; ++p) {
-								RenderPosition pos = RenderPosition.POSITIONS_BIAS[info.pos.ordinal() ^ 1][p];
+								RenderPosition pos = bias[p];
 								if (pos == back || pos == opp)
 									continue;
 								if (sides.getVisibility().isVisible(opp.facing, pos.facing)) {
+									s: if (pos != info.pos && pos == RenderPosition.NONE) {
+										// no-op
+										RenderPosition w = pos;
+										RenderPosition l = info.last == null ? RenderPosition.NONE : info.last.getOpposite();
+										for (int k = 0; k < 6; ++k) {
+											RenderPosition o = bias[k];
+											WorldRenderer t = getRender(rend.posX + o.x + w.x + l.x,
+												rend.posY + o.y + w.y + l.y,
+												rend.posZ + o.z + w.z + l.z);
+											if (t != rend && log.contains(t)) {
+												break s;
+											}
+										}
+										continue;
+									}
 									WorldRenderer t = getRender(rend.posX + pos.x, rend.posY + pos.y, rend.posZ + pos.z);
 									if (t != null && log.add(t))
-										queue.add(new CullInfo(t, pos, info.count + 1));
+										queue.add(new CullInfo(t, pos, info.pos, info.count + 1));
 								}
 							}
 						}
@@ -551,12 +570,22 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			final int count;
 			final WorldRenderer rend;
 			final RenderPosition pos;
+			final RenderPosition last;
 
 			public CullInfo(WorldRenderer rend, RenderPosition pos, int count) {
 
 				this.count = count;
 				this.rend = rend;
 				this.pos = pos;
+				this.last = null;
+			}
+
+			public CullInfo(WorldRenderer rend, RenderPosition pos, RenderPosition prev, int count) {
+
+				this.count = count;
+				this.rend = rend;
+				this.pos = pos;
+				this.last = prev;
 			}
 		}
 	}
@@ -567,7 +596,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		WEST(EnumFacing.WEST, -1, 0, 0),
 		EAST(EnumFacing.EAST, 16, 0, 0),
 		NORTH(EnumFacing.NORTH, 0, 0, -1),
-		SOUTH(EnumFacing.SOUTH, 0, 0, 16);
+		SOUTH(EnumFacing.SOUTH, 0, 0, 16),
+		NONE(null, 0, 0, 0);
 
 		public static final RenderPosition[] POSITIONS = values();
 		public static final RenderPosition[][] POSITIONS_BIAS = new RenderPosition[6][6];
@@ -591,20 +621,22 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				case WEST:
 				case EAST:
 					bias[j++] = pos;
-					bias[j++] = UP;
 					bias[j++] = NORTH;
 					bias[j++] = SOUTH;
+					bias[j++] = UP;
 					bias[j++] = DOWN;
 					bias[j++] = pos.getOpposite();
 					break;
 				case NORTH:
 				case SOUTH:
 					bias[j++] = pos;
-					bias[j++] = UP;
 					bias[j++] = EAST;
 					bias[j++] = WEST;
+					bias[j++] = UP;
 					bias[j++] = DOWN;
 					bias[j++] = pos.getOpposite();
+					break;
+				case NONE:
 					break;
 				}
 			}

@@ -71,12 +71,14 @@ public class VisGraph {
 
 			visibleBlocks.andNot(visibleBlocks);
 			visibleBlocks.or(opaqueBlocks);
+			IntStack linkedlist = new IntStack(1024, 512);
 			for (int j = 0; j < i; ++j) {
 				int k = edges[j];
 
 				if (!opaqueBlocks.get(k)) {
-					setvisibility.setManyVisible(computeVisibleFacingsFrom(k));
+					setvisibility.setManyVisible(computeVisibleFacingsFrom(k, linkedlist));
 				}
+				linkedlist.setSize(0);
 			}
 		}
 
@@ -88,13 +90,12 @@ public class VisGraph {
 
 		visibleBlocks.andNot(visibleBlocks);
 		visibleBlocks.or(opaqueBlocks);
-		return computeVisibleFacingsFrom(getIndex(x & 15, y & 15, z & 15));
+		return computeVisibleFacingsFrom(getIndex(x & 15, y & 15, z & 15), new IntStack(256, 512));
 	}
 
-	private Set<EnumFacing> computeVisibleFacingsFrom(int index) {
+	private EnumSet<EnumFacing> computeVisibleFacingsFrom(int index, IntStack linkedlist) {
 
 		EnumSet<EnumFacing> enumset = EnumSet.noneOf(EnumFacing.class);
-		IntStack linkedlist = new IntStack(1024, 512);
 		linkedlist.add(index);
 		BitSet blocks = this.visibleBlocks;
 		blocks.set(index, true);
