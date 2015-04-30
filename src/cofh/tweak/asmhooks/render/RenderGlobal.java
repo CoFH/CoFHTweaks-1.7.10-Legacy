@@ -82,7 +82,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 			if (worldrenderer != null) {
 
-				if (worldrenderer.isInitialized)
 				if (!worldrenderer.isInFrustum || !worldrenderer.isVisible) {
 					worldrenderer.needsUpdate = false;
 					continue;
@@ -147,12 +146,12 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 				if (!rend.isInitialized) {
 					++dummyRenderInt;
+				} else if (rend.skipRenderPass[0] && rend.skipRenderPass[1]) {
+					++renderersSkippingRenderPass;
 				} else if (!rend.isInFrustum) {
 					++renderersBeingClipped;
 				} else if (!rend.isVisible) {
 					++renderersBeingOccluded;
-				} else if (rend.skipRenderPass[0] && rend.skipRenderPass[1]) {
-					++renderersSkippingRenderPass;
 				} else {
 					++renderersBeingRendered;
 				}
