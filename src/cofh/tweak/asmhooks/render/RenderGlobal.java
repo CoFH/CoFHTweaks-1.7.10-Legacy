@@ -324,7 +324,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		}
 
 		if (rebuild) {
-			prevRotationYaw = -9999;
+			worker.clean = true;
 			/*
 			 * worker.lock();
 			 * worker.working = true;
@@ -346,7 +346,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		worker.lock();
 		super.loadRenderers();
-		worker.working = true;
+		worker.clean = true;
 		worker.unlock();
 	}
 
@@ -357,6 +357,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		markRenderers(x, y, z);
 		worker.working = true;
 		worker.run(true);
+		worker.clean = true;
 		worker.unlock();
 	}
 
@@ -429,65 +430,61 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		public void run(boolean immediate) {
 
-			//for (;;)
-			{
-				l: try {
-					EntityLivingBase view = Minecraft.getMinecraft().renderViewEntity;
-					if (theWorld == null || view == null || !(working || clean || immediate)) {
+			l: try {
+				EntityLivingBase view = Minecraft.getMinecraft().renderViewEntity;
+				if (theWorld == null || view == null || !(working || clean || immediate)) {
+					if (!immediate)
+						sleep(10000);
+					break l;
+				}
+				if (!immediate) {
+					sleep(300);
+					for (WorldRenderer rend : render.worldRenderers) {
+						rend.isWaitingOnOcclusionQuery = false;
+					}
+					sleep(1);
+					lock.lockInterruptibly();
+				}
+				if (clean) {
+					working = true;
+					clean = false;
+				}
+				WorldRenderer center;
+				WorldClient theWorld = this.theWorld;
+				ArrayDeque<CullInfo> queue = this.queue;
+				RenderPosition back = RenderPosition.getBackFacingFromVector(view);
+				{
+					int x = MathHelper.floor_double(view.posX);
+					int y = MathHelper.floor_double(view.posY + view.getEyeHeight());
+					int z = MathHelper.floor_double(view.posZ);
+					center = getRender(x, y, z);
+					if (center == null) {
+						working = false;
 						if (!immediate)
-							sleep(10000);
+							lock.unlock();
 						break l;
 					}
-					if (!immediate) {
-						sleep(300);
-						lock.lockInterruptibly();
-						for (WorldRenderer rend : render.worldRenderers) {
-							rend.isWaitingOnOcclusionQuery = false;
+					center.needsUpdate |= !center.isVisible;
+					center.isVisible = center.isWaitingOnOcclusionQuery = true;
+					log.add(center);
+					Chunk chunk = theWorld.getChunkFromBlockCoords(center.posX, center.posZ);
+					if (chunk instanceof ClientChunk) {
+						VisGraph sides = ((ClientChunk) chunk).visibility[center.posY >> 4];
+						Set<EnumFacing> faces = sides.getVisibleFacingsFrom(x, y, z);
+						RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal()];
+						for (int p = 0; p < 6; ++p) {
+							RenderPosition pos = bias[p];
+							if (!faces.contains(pos.facing))
+								continue;
+							WorldRenderer t = getRender(center.posX + pos.x, center.posY + pos.y, center.posZ + pos.z);
+							if (t == null || !log.add(t))
+								continue;
+							queue.add(new CullInfo(t, pos, (render.renderDistanceChunks >> 1) * (immediate ? 1 : -1) - 2));
 						}
-						lock.unlock();
-						sleep(1);
-						lock.lockInterruptibly();
 					}
-					if (clean) {
-						working = true;
-						clean = false;
-					}
-					WorldRenderer center;
-					WorldClient theWorld = this.theWorld;
-					ArrayDeque<CullInfo> queue = this.queue;
-					RenderPosition back = RenderPosition.getBackFacingFromVector(view);
-					{
-						int x = MathHelper.floor_double(view.posX);
-						int y = MathHelper.floor_double(view.posY + view.getEyeHeight());
-						int z = MathHelper.floor_double(view.posZ);
-						center = getRender(x, y, z);
-						if (center == null) {
-							working = false;
-							if (!immediate)
-								lock.unlock();
-							break l;
-						}
-						center.needsUpdate |= !center.isVisible;
-						center.isVisible = center.isWaitingOnOcclusionQuery = true;
-						log.add(center);
-						Chunk chunk = theWorld.getChunkFromBlockCoords(center.posX, center.posZ);
-						if (chunk instanceof ClientChunk) {
-							VisGraph sides = ((ClientChunk) chunk).visibility[center.posY >> 4];
-							Set<EnumFacing> faces = sides.getVisibleFacingsFrom(x, y, z);
-							RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal()];
-							for (int p = 0; p < 6; ++p) {
-								RenderPosition pos = bias[p];
-								if (!faces.contains(pos.facing))
-									continue;
-								WorldRenderer t = getRender(center.posX + pos.x, center.posY + pos.y, center.posZ + pos.z);
-								if (t == null || !log.add(t))
-									continue;
-								queue.add(new CullInfo(t, pos, (render.renderDistanceChunks >> 1) * (immediate ? 1 : -1) - 2));
-							}
-						}
-						working = queue.size() > 0;
-					}
-					for (int i = 0; working && !isInterrupted(); working = !queue.isEmpty()) {
+				}
+				if (!queue.isEmpty()) {
+					for (int i = 0; !queue.isEmpty() && !isInterrupted(); ) {
 						CullInfo info = queue.pollLast();
 						WorldRenderer rend = info.rend;
 						if (rend.glOcclusionQuery < 0) {
@@ -535,22 +532,22 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							lock.lockInterruptibly();
 						}
 					}
-					if (!immediate) {
-						if (!isInterrupted()) {
-							for (WorldRenderer rend : render.worldRenderers) {
-								if (!rend.isWaitingOnOcclusionQuery)
-									rend.isVisible = false;
-							}
-						}
-						lock.unlock();
-						sleep(6000);
-					}
-				} catch (InterruptedException e) {
-				} finally {
-					working = false;
-					queue.clear();
-					log.clear();
 				}
+				if (!immediate) {
+					if (!isInterrupted()) {
+						for (WorldRenderer rend : render.worldRenderers) {
+							if (!rend.isWaitingOnOcclusionQuery)
+								rend.isVisible = false;
+						}
+					}
+					lock.unlock();
+					sleep(6000);
+				}
+			} catch (InterruptedException e) {
+			} finally {
+				working = false;
+				queue.clear();
+				log.clear();
 			}
 		}
 
