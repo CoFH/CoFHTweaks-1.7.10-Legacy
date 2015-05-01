@@ -441,18 +441,16 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					if (!immediate) {
 						sleep(300);
 						lock.lockInterruptibly();
-					}
-					if (clean) {
-						working = true;
-						clean = false;
-					}
-					if (!immediate) {
 						for (WorldRenderer rend : render.worldRenderers) {
 							rend.isWaitingOnOcclusionQuery = false;
 						}
 						lock.unlock();
 						sleep(1);
 						lock.lockInterruptibly();
+					}
+					if (clean) {
+						working = true;
+						clean = false;
 					}
 					WorldRenderer center;
 					WorldClient theWorld = this.theWorld;
