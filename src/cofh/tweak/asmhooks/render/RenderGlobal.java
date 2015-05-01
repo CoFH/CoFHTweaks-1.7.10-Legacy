@@ -82,7 +82,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 				if (!worldrenderer.isInFrustum || !worldrenderer.isVisible) {
 					worldrenderer.needsUpdate = false;
-					--c;
 					continue;
 				}
 
