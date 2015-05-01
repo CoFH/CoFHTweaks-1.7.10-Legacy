@@ -48,12 +48,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			}
 		}
 
-		for (int i = 0; i < 10 && workerWorldRenderers.size() > 0; ++i) {
-			WorldRenderer rend = workerWorldRenderers.shift();
-			worldRenderersToUpdateList.remove(rend);
-			worldRenderersToUpdateList.unshift(rend);
-		}
-
 	}
 
 	@Override
@@ -76,7 +70,13 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		for (int c = 0, i = 0; c < lim; ++c) {
 			++i;
-			WorldRenderer worldrenderer = worldRenderersToUpdateList.shift();
+			WorldRenderer worldrenderer;
+			if (workerWorldRenderers.size() > 0) {
+				worldrenderer = workerWorldRenderers.shift();
+				worldRenderersToUpdateList.remove(worldrenderer);
+			} else {
+				worldrenderer = worldRenderersToUpdateList.shift();
+			}
 
 			if (worldrenderer != null) {
 
@@ -464,7 +464,14 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							lock.unlock();
 						break l;
 					}
-					center.needsUpdate |= !center.isVisible;
+					if (!center.isInitialized || center.glOcclusionQuery < 0) {
+						center.glOcclusionQuery = 0;
+						if (!center.isInitialized || (!center.isVisible && center.distanceToEntitySquared(view) <= 1128.0F)) {
+							center.needsUpdate = true;
+							center.isVisible = true;
+							render.workerWorldRenderers.push(center);
+						}
+					}
 					center.isVisible = center.isWaitingOnOcclusionQuery = true;
 					log.add(center);
 					Chunk chunk = theWorld.getChunkFromBlockCoords(center.posX, center.posZ);
@@ -485,11 +492,11 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				}
 				if (!queue.isEmpty()) {
 					for (int i = 0; !queue.isEmpty() && !isInterrupted(); ) {
-						CullInfo info = queue.pollLast();
+						CullInfo info = queue.pollFirst();
 						WorldRenderer rend = info.rend;
-						if (rend.glOcclusionQuery < 0) {
+						if (!rend.isInitialized || rend.glOcclusionQuery < 0) {
 							rend.glOcclusionQuery = 0;
-							if (!rend.isVisible && rend.distanceToEntitySquared(view) <= 1128.0F) {
+							if (!rend.isInitialized || (!rend.isVisible && rend.distanceToEntitySquared(view) <= 1128.0F)) {
 								rend.needsUpdate = true;
 								rend.isVisible = true;
 								render.workerWorldRenderers.push(rend);
@@ -500,7 +507,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						if (info.count <= render.renderDistanceChunks && chunk instanceof ClientChunk) {
 							VisGraph sides = ((ClientChunk) chunk).visibility[rend.posY >> 4];
 							RenderPosition opp = info.pos.getOpposite();
-							RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal()];
+							RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal() ^ 1];
 							for (int p = 0; p < 6; ++p) {
 								RenderPosition pos = bias[p];
 								if (pos == back || pos == opp)
