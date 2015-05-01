@@ -59,8 +59,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	@Override
 	public boolean updateRenderers(EntityLivingBase view, boolean p_72716_2_) {
 
-		int yaw = MathHelper.floor_float(view.rotationYaw) >> 2;
-		int pitch = MathHelper.floor_float(view.rotationPitch + 45) >> 3;
+		int yaw = MathHelper.floor_float(view.rotationYaw + 45) >> 5;
+		int pitch = MathHelper.floor_float(view.rotationPitch + 45) >> 5;
 		if (yaw != prevRotationYaw || pitch != prevRotationPitch) {
 			prevRotationYaw = yaw;
 			prevRotationPitch = pitch;
@@ -526,7 +526,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 								}
 							}
 						}
-						if ((++i & 63) == 0 && !immediate) {
+						if ((++i & 31) == 0 && !immediate) {
 							lock.unlock();
 							sleep(1);
 							lock.lockInterruptibly();
