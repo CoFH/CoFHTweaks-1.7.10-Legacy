@@ -91,7 +91,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				if (i > 5) {
 					i = 0;
 					long t = (System.nanoTime() - start) >>> 1;
-					if (t > 10000000L >>> 1)
+					if (t > 5000000L >>> 1)
 						break;
 				}
 			}
