@@ -1,7 +1,7 @@
 package cofh.tweak.asmhooks.entity;
 
-import cofh.tweak.IdentityArrayHashList;
 import cofh.tweak.asmhooks.Config;
+import cofh.tweak.util.IdentityArrayHashList;
 
 import java.util.ArrayList;
 

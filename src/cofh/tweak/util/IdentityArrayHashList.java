@@ -1,4 +1,4 @@
-package cofh.tweak;
+package cofh.tweak.util;
 
 import cofh.repack.cofh.lib.util.ArrayHashList;
 

@@ -77,7 +77,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		return size;
 	}
 
-	protected boolean add(E obj, int hash) {
+	protected synchronized boolean add(E obj, int hash) {
 
 		if (seek(obj, hash) != null) {
 			return false;
@@ -125,7 +125,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 	}
 
 	@Override
-	public void add(int index, E obj) {
+	public synchronized void add(int index, E obj) {
 
 		checkPositionIndex(index);
 
@@ -206,15 +206,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 
 		Entry e = tail;
 		if (e != null) {
-			++modCount;
-			delete(e);
-			tail = e.prev;
-			e.prev = null;
-			if (tail != null) {
-				tail.next = null;
-			} else {
-				head = null;
-			}
+			unlink(e);
 			return (E) e.key;
 		}
 		return null;
@@ -230,7 +222,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		return head != null ? (E) head.key : null;
 	}
 
-	public boolean unshift(E obj) {
+	public synchronized boolean unshift(E obj) {
 
 		int hash = hash(obj);
 		if (seek(obj, hash) != null) {
@@ -256,15 +248,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 
 		Entry e = head;
 		if (e != null) {
-			++modCount;
-			delete(e);
-			head = e.next;
-			e.next = null;
-			if (head != null) {
-				head.prev = null;
-			} else {
-				tail = null;
-			}
+			unlink(e);
 			return (E) e.key;
 		}
 		return null;
@@ -335,7 +319,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		++size;
 	}
 
-	protected boolean linkBefore(E obj, Entry succ) {
+	protected synchronized boolean linkBefore(E obj, Entry succ) {
 
 		int hash = hash(obj);
 		if (seek(obj, hash) != null) {
@@ -378,7 +362,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		--size;
 	}
 
-	protected E unlink(Entry x) {
+	protected synchronized E unlink(Entry x) {
 
 		final E element = (E) x.key;
 		final Entry next = x.next;
