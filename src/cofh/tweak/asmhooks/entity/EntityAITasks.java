@@ -14,7 +14,8 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 
 		super(p_i1628_1_);
 		executingTaskEntries = new IdentityArrayHashList<EntityAITaskEntry>();
-		tickRate = 10;
+		if (Config.agressiveAICulling)
+			tickRate = 10;
 	}
 
     ArrayList<EntityAITaskEntry> arraylist = new ArrayList<EntityAITaskEntry>();
@@ -85,7 +86,8 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 
         for (int i = 0, e = arraylist.size(); i < e; ++i) {
             entityaitaskentry = arraylist.get(i);
-            this.theProfiler.startSection(entityaitaskentry.action.getClass().getSimpleName());
+            String name = this.theProfiler.profilingEnabled ? entityaitaskentry.action.getClass().getSimpleName() : "$";
+            this.theProfiler.startSection(name);
             entityaitaskentry.action.startExecuting();
             this.theProfiler.endSection();
         }
