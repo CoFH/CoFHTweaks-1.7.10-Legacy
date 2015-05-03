@@ -76,7 +76,8 @@ public class Vector4 {
 
 	public float dotProduct(float d, float d1, float d2) {
 
-		return d * x + d1 * y + d2 * z + w;
+		float r = d * x + d1 * y + d2 * z + w;
+		return r;
 	}
 
 	public Vector4 crossProduct(Vector4 vec) {
@@ -182,6 +183,18 @@ public class Vector4 {
 		return this;
 	}
 
+	public Vector4 normalizeFrustrum() {
+
+		float w = this.w;
+		this.w = 0;
+		float d = (float) mag();
+		this.w = w;
+		if (d != 0) {
+			multiply(1 / d);
+		}
+		return this;
+	}
+
 	@Override
 	public String toString() {
 
@@ -189,7 +202,7 @@ public class Vector4 {
 		return "Vector4(" + new BigDecimal(x, cont) + ", " +
 				new BigDecimal(y, cont) + ", " +
 				new BigDecimal(z, cont) + ", " +
-				new BigDecimal(z, cont) + ")";
+				new BigDecimal(w, cont) + ")";
 	}
 
 	public double angle(Vector4 vec) {

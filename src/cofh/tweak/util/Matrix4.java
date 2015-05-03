@@ -331,6 +331,28 @@ public class Matrix4 {
 		return this;
 	}
 
+	public Matrix4 set(float[] mat) {
+
+		m00 = mat[0];
+		m01 = mat[1];
+		m02 = mat[2];
+		m03 = mat[3];
+		m10 = mat[4];
+		m11 = mat[5];
+		m12 = mat[6];
+		m13 = mat[7];
+		m20 = mat[8];
+		m21 = mat[9];
+		m22 = mat[10];
+		m23 = mat[11];
+		m30 = mat[12];
+		m31 = mat[13];
+		m32 = mat[14];
+		m33 = mat[15];
+
+		return this;
+	}
+
 	private void mult3x3(Vector3 vec) {
 
 		float x = m00 * vec.x + m01 * vec.y + m02 * vec.z;

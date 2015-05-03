@@ -3,7 +3,9 @@ package cofh.tweak.asmhooks.render;
 import cofh.repack.cofh.lib.util.IdentityLinkedHashList;
 import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
 import cofh.tweak.asmhooks.world.ClientChunk;
+import cofh.tweak.util.Frustrum;
 import cofh.tweak.util.Matrix4;
+import cofh.tweak.util.Vector3;
 
 import java.util.ArrayDeque;
 import java.util.EnumSet;
@@ -538,6 +540,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		public RenderWorker() {
 
 			super("Render Worker");
+			/*for (int i = 0; i < fStack.length; ++i) {
+				fStack[i] = new Frustrum();
+			}//*/
 		}
 
 		public void lock() {
@@ -563,6 +568,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		public volatile boolean working = false, clean = false;
 		private final ReentrantLock lock = new ReentrantLock();
 		private ArrayDeque<CullInfo> queue = new ArrayDeque<CullInfo>();
+		private Frustrum fStack = new Frustrum();
 		private IdentityHashMap<WorldRenderer, CullInfo> log = new IdentityHashMap<WorldRenderer, CullInfo>();
 		private WorldClient theWorld;
 		private RenderGlobal render;
@@ -608,10 +614,13 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				WorldClient theWorld = this.theWorld;
 				ArrayDeque<CullInfo> queue = this.queue;
 				RenderPosition back = RenderPosition.getBackFacingFromVector(view);
+				Vector3 p_view = new Vector3();
 				{
 					int x = MathHelper.floor_double(view.posX);
 					int y = MathHelper.floor_double(view.posY + view.getEyeHeight());
 					int z = MathHelper.floor_double(view.posZ);
+					final int distance = 64;
+					p_view.set(x, y, z).add(distance * back._x, distance * back._y, distance * back._z);
 					center = render.getRenderer(x, y, z);
 					if (center == null) {
 						working = false;
@@ -652,7 +661,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				if (!queue.isEmpty()) {
 					@SuppressWarnings("unused")
 					int visited = queue.size();
+					fStack.setPosition(p_view.x, p_view.y, p_view.z);
 					Matrix4 view_m = new Matrix4(ClippingHelperImpl.instance.modelviewMatrix);
+					Matrix4 view_p = new Matrix4(ClippingHelperImpl.instance.projectionMatrix);
+					Vector3 p_chunk = new Vector3();
 					// TODO: frustrum stack: https://tomcc.github.io/frustum_clamping.html
 					for (int i = 0; !queue.isEmpty() && !isInterrupted();) {
 						CullInfo info = queue.pollFirst();
@@ -688,11 +700,16 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 									continue;
 
 								if (sides.getVisibility().isVisible(opp.facing, pos.facing)) {
-
 									info.facings.add(pos);
-									int cost = 1;
+
 									WorldRenderer t = render.getRenderer(rend.posX + pos.x, rend.posY + pos.y, rend.posZ + pos.z);
 									if (t != null) {
+										int cost = 1;
+
+										/*p_chunk.set(t.posX + 8, t.posY + 8, t.posZ + 8);
+										view_p.perspective(-8, 8, -8, 8, (float) p_chunk.sub(p_view).mag());
+										if (!fStack.set(view_m, view_p).isBoundingBoxInFrustum(t.rendererBoundingBox))
+											continue;//*/
 
 										CullInfo prev = log.get(t);
 										if (prev != null) {
