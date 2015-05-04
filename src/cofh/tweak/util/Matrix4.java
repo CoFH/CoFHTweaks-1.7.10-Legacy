@@ -1,8 +1,7 @@
 package cofh.tweak.util;
 
-import java.math.BigDecimal;
-import java.math.MathContext;
 import java.math.RoundingMode;
+import java.text.DecimalFormat;
 
 public class Matrix4 {
 
@@ -39,22 +38,7 @@ public class Matrix4 {
 
 	public Matrix4(float[] d) {
 
-		m00 = d[0];
-		m01 = d[1];
-		m02 = d[2];
-		m03 = d[3];
-		m10 = d[4];
-		m11 = d[5];
-		m12 = d[6];
-		m13 = d[7];
-		m20 = d[8];
-		m21 = d[9];
-		m22 = d[10];
-		m23 = d[11];
-		m30 = d[12];
-		m31 = d[13];
-		m32 = d[14];
-		m33 = d[15];
+		set(d);
 	}
 
 	public Matrix4(Matrix4 mat) {
@@ -73,6 +57,7 @@ public class Matrix4 {
 	public Matrix4 orthogonal(float left, float right, float bottom, float top, float near, float far) {
 
 		setIdentity();
+		transpose();
 
 		m00 = 2 / (right - left);
 		m11 = 2 / (top - bottom);
@@ -80,18 +65,25 @@ public class Matrix4 {
 		m32 = (far + near) / (far - near);
 		m30 = (right + left) / (right - left);
 		m31 = (top + bottom) / (top - bottom);
+		transpose();
 
 		return this;
 	}
 
-	public Matrix4 orthogonal(float left, float right, float bottom, float top, float near) {
+	public Matrix4 orthogonal(float width, float height, float near, float far) {
 
-		return orthogonal(left, right, bottom, top, near, near * 2);
+		return orthogonal(-width, width, -height, height, near, far);
+	}
+
+	public Matrix4 orthogonal(float size, float near, float far) {
+
+		return orthogonal(-size, size, -size, size, near, far);
 	}
 
 	public Matrix4 perspective(float left, float right, float bottom, float top, float near, float far) {
 
 		setIdentity();
+		transpose();
 
 		m00 = 2 * near / (right - left);
 		m11 = 2 * near / (top - bottom);
@@ -101,13 +93,47 @@ public class Matrix4 {
 		m20 = (right + left) / (right - left);
 		m21 = (top + bottom) / (top - bottom);
 		m33 = 0;
+		transpose();
 
 		return this;
 	}
 
-	public Matrix4 perspective(float left, float right, float bottom, float top, float near) {
+	public Matrix4 perspective(float width, float height, float near, float far) {
 
-		return perspective(left, right, bottom, top, near, near * 2);
+		return perspective(-width, width, -height, height, near, far);
+	}
+
+	public Matrix4 perspective(float size, float near, float far) {
+
+		return perspective(-size, size, -size, size, near, far);
+	}
+
+	public Matrix4 camera(Vector3 facing) {
+
+		Vector3 x, y, z;
+		z = facing.clone().normalize();
+		x = new Vector3(0, 1, 0).crossProduct(z);
+		y = z.clone().crossProduct(x).normalize();
+		x.normalize();
+
+		m00 = x.x;
+		m01 = x.y;
+		m02 = x.z;
+		m03 = -x.dotProduct(facing);
+		m10 = y.x;
+		m11 = y.y;
+		m12 = y.z;
+		m13 = -y.dotProduct(facing);
+		m20 = z.x;
+		m21 = z.y;
+		m22 = z.z;
+		m23 = -z.dotProduct(facing);
+		m30 = 0;
+		m31 = 0;
+		m32 = 0;
+		m33 = 1;
+
+		return this;
 	}
 
 	public Matrix4 translate(Vector3 vec) {
@@ -116,6 +142,16 @@ public class Matrix4 {
 		m13 += m10 * vec.x + m11 * vec.y + m12 * vec.z;
 		m23 += m20 * vec.x + m21 * vec.y + m22 * vec.z;
 		m33 += m30 * vec.x + m31 * vec.y + m32 * vec.z;
+
+		return this;
+	}
+
+	public Matrix4 translate(float x, float y, float z) {
+
+		m03 += m00 * x + m01 * y + m02 * z;
+		m13 += m10 * x + m11 * y + m12 * z;
+		m23 += m20 * x + m21 * y + m22 * z;
+		m33 += m30 * x + m31 * y + m32 * z;
 
 		return this;
 	}
@@ -349,6 +385,7 @@ public class Matrix4 {
 		m31 = mat[13];
 		m32 = mat[14];
 		m33 = mat[15];
+		transpose();
 
 		return this;
 	}
@@ -379,14 +416,17 @@ public class Matrix4 {
 	@Override
 	public String toString() {
 
-		MathContext cont = new MathContext(4, RoundingMode.HALF_UP);
-		return "[" + new BigDecimal(m00, cont) + "," + new BigDecimal(m01, cont) + "," + new BigDecimal(m02, cont) + "," +
-				new BigDecimal(m03, cont) + "]\n"
-				+ "[" + new BigDecimal(m10, cont) + "," + new BigDecimal(m11, cont) + "," + new BigDecimal(m12, cont) + "," +
-				new BigDecimal(m13, cont) + "]\n"
-				+ "[" + new BigDecimal(m20, cont) + "," + new BigDecimal(m21, cont) + "," + new BigDecimal(m22, cont) + "," +
-				new BigDecimal(m23, cont) + "]\n"
-				+ "[" + new BigDecimal(m30, cont) + "," + new BigDecimal(m31, cont) + "," + new BigDecimal(m32, cont) + "," +
-				new BigDecimal(m33, cont) + "]";
+		DecimalFormat dec = new DecimalFormat("+0.00000;-0.00000");
+		dec.setRoundingMode(RoundingMode.HALF_UP);
+		StringBuffer r = new StringBuffer(1 + (10 + 1) * 16);
+		r.append('[').append(dec.format(m00)).append(',').append(dec.format(m01)).append(',').append(dec.format(m02)).
+				append(',').append(dec.format(m03)).append(']').append('\n');
+		r.append('[').append(dec.format(m10)).append(',').append(dec.format(m11)).append(',').append(dec.format(m12)).
+				append(',').append(dec.format(m13)).append(']').append('\n');
+		r.append('[').append(dec.format(m20)).append(',').append(dec.format(m21)).append(',').append(dec.format(m22)).
+				append(',').append(dec.format(m23)).append(']').append('\n');
+		r.append('[').append(dec.format(m30)).append(',').append(dec.format(m31)).append(',').append(dec.format(m32)).
+				append(',').append(dec.format(m33)).append(']');
+		return r.toString();
 	}
 }

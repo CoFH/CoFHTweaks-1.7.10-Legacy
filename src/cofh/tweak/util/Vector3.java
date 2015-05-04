@@ -13,6 +13,14 @@ public class Vector3 {
 	public static Vector3 zero = new Vector3();
 	public static Vector3 one = new Vector3(1, 1, 1);
 	public static Vector3 center = new Vector3(0.5f, 0.5f, 0.5f);
+	public static Vector3[] axes = {
+		new Vector3(0, -1, 0),
+		new Vector3(0, +1, 0),
+		new Vector3(0, 0, -1),
+		new Vector3(0, 0, +1),
+		new Vector3(-1, 0, 0),
+		new Vector3(+1, 0, 0),
+	};
 
 	public float x;
 	public float y;
@@ -250,6 +258,28 @@ public class Vector3 {
 
 		MathContext cont = new MathContext(4, RoundingMode.HALF_UP);
 		return "Vector3(" + new BigDecimal(x, cont) + ", " + new BigDecimal(y, cont) + ", " + new BigDecimal(z, cont) + ")";
+	}
+
+	public Vector3 rotate(float angle, Vector3 axis) {
+
+		if (axis.magSquared() != 1) {
+			axis = axis.clone().normalize();
+		}
+
+		angle *= 0.5f;
+		float s2 = (float) Math.sin(angle);
+		float a1 = (float) Math.cos(angle);
+		float a2 = axis.x * s2, a3 = axis.y * s2, a4 = axis.z * s2;
+
+		float d = -a1 * x - a2 * y - a3 * z;
+		float d1 = a4 * x + a2 * z - a3 * y;
+		float d2 = a4 * y - a1 * z + a3 * x;
+		float d3 = a4 * z + a1 * y - a2 * x;
+
+		x = d1 * a4 - d * a1 - d2 * a3 + d3 * a2;
+		y = d2 * a4 - d * a2 + d1 * a3 - d3 * a1;
+		z = d3 * a4 - d * a3 - d1 * a2 + d2 * a1;
+		return this;
 	}
 
 	public Vector3 perpendicular() {

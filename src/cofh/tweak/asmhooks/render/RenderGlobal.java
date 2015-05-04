@@ -4,7 +4,6 @@ import cofh.repack.cofh.lib.util.IdentityLinkedHashList;
 import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
 import cofh.tweak.asmhooks.world.ClientChunk;
 import cofh.tweak.util.Frustrum;
-import cofh.tweak.util.Matrix4;
 import cofh.tweak.util.Vector3;
 
 import java.util.ArrayDeque;
@@ -18,7 +17,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.WorldRenderer;
-import net.minecraft.client.renderer.culling.ClippingHelperImpl;
 import net.minecraft.client.renderer.culling.ICamera;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
@@ -615,12 +613,18 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				ArrayDeque<CullInfo> queue = this.queue;
 				RenderPosition back = RenderPosition.getBackFacingFromVector(view);
 				Vector3 p_view = new Vector3();
+				Vector3 view_look = new Vector3();
 				{
 					int x = MathHelper.floor_double(view.posX);
 					int y = MathHelper.floor_double(view.posY + view.getEyeHeight());
 					int z = MathHelper.floor_double(view.posZ);
-					final int distance = 64;
-					p_view.set(x, y, z).add(distance * back._x, distance * back._y, distance * back._z);
+					view_look.set(0, 0, -1);
+					view_look.rotate(view.rotationPitch * (float)Math.PI / 180, Vector3.axes[3]);
+					view_look.rotate(view.rotationYaw * (float)Math.PI / 180, Vector3.axes[1]);
+					view_look.normalize();
+
+					p_view.set(view_look).multiply(64).add(x, y, z);
+
 					center = render.getRenderer(x, y, z);
 					if (center == null) {
 						working = false;
@@ -661,10 +665,19 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				if (!queue.isEmpty()) {
 					@SuppressWarnings("unused")
 					int visited = queue.size();
-					fStack.setPosition(p_view.x, p_view.y, p_view.z);
-					Matrix4 view_m = new Matrix4(ClippingHelperImpl.instance.modelviewMatrix);
-					Matrix4 view_p = new Matrix4(ClippingHelperImpl.instance.projectionMatrix);
-					Vector3 p_chunk = new Vector3();
+					//fStack.setPosition(p_view.x, p_view.y, p_view.z);
+					//Matrix4 view_m = new Matrix4(ClippingHelperImpl.instance.modelviewMatrix);
+					{
+						//float m = (float) Math.PI / 180;
+						//float v = (float) Math.cos(view.rotationPitch * m);
+						//view_m.camera(new Vector3(
+						//	v * (float) Math.sin((view.rotationYaw +180) * m),
+						//	-(float) Math.sin(view.rotationPitch * m),
+						//	v * (float) Math.cos((view.rotationYaw +180) * m)
+						//));
+					}
+					//Matrix4 view_p = new Matrix4(ClippingHelperImpl.instance.projectionMatrix);
+					//Vector3 p_chunk = new Vector3();
 					// TODO: frustrum stack: https://tomcc.github.io/frustum_clamping.html
 					for (int i = 0; !queue.isEmpty() && !isInterrupted();) {
 						CullInfo info = queue.pollFirst();
@@ -694,6 +707,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							RenderPosition opp = info.last;
 							RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal() ^ 1];
 
+							//p_chunk.set(rend.posX + 8, rend.posY + 8, rend.posZ + 8);
+							//view_p.perspective(0, 0, (float) p_chunk.sub(p_view).mag(), 1250);
+							//fStack.set(view_m, view_p);
+
 							for (int p = 0; p < 6; ++p) {
 								RenderPosition pos = bias[p];
 								if (pos == back || pos == opp || info.facings.contains(pos))
@@ -706,10 +723,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 									if (t != null) {
 										int cost = 1;
 
-										/*p_chunk.set(t.posX + 8, t.posY + 8, t.posZ + 8);
-										view_p.perspective(-8, 8, -8, 8, (float) p_chunk.sub(p_view).mag());
-										if (!fStack.set(view_m, view_p).isBoundingBoxInFrustum(t.rendererBoundingBox))
-											continue;//*/
+										//if (!fStack.isBoundingBoxInFrustum(t.rendererBoundingBox))
+											//continue;
 
 										CullInfo prev = log.get(t);
 										if (prev != null) {
