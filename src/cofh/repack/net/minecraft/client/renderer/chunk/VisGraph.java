@@ -15,6 +15,12 @@ public class VisGraph {
 	private static final int Y_OFFSET = (int) Math.pow(16.0D, 2.0D);
 	private static final int[] EDGES = new int[1352];
 
+	/*
+	 * This is a pretty hefty structure: 1340 bytes per 16^3 (40+bytes per object, and the array of long[] in BitSet)
+	 * weighing in around 190 bytes for BitSets, 40 bytes for SetVisibility, and 50 bytes for this.
+	 * ~4,824,000 bytes at view distance 7; This could be halved if it were not reusable, but reusability is part
+	 * of what makes it speedy when recalculating the viewable area.
+	 */
 	private final BitSet opaqueBlocks = new BitSet(4096);
 	private final BitSet visibleBlocks = new BitSet(4096);
 	private int transparentBlocks = 4096;
@@ -56,10 +62,11 @@ public class VisGraph {
 
 	public SetVisibility getVisibility() {
 
-		if (visibility != null) {
-			return visibility;
+		SetVisibility setvisibility = visibility;
+		if (setvisibility != null) {
+			return setvisibility;
 		}
-		SetVisibility setvisibility = new SetVisibility();
+		setvisibility = new SetVisibility();
 
 		if (4096 - transparentBlocks < 256) {
 			setvisibility.setAllVisible(true);

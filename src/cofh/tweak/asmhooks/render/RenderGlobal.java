@@ -292,12 +292,12 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 				if (!rend.isInitialized) {
 					++dummyRenderInt;
-				} else if (rend.skipRenderPass[0] && rend.skipRenderPass[1]) {
-					++renderersSkippingRenderPass;
 				} else if (!rend.isInFrustum) {
 					++renderersBeingClipped;
 				} else if (!rend.isVisible) {
 					++renderersBeingOccluded;
+				} else if (rend.skipRenderPass[0] && rend.skipRenderPass[1]) {
+					++renderersSkippingRenderPass;
 				} else {
 					++renderersBeingRendered;
 				}
@@ -399,11 +399,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					worldrenderer.setPosition(k1, i3, j2);
 
 					if (!flag && worldrenderer.needsUpdate) {
-						if (worldrenderer.distanceToEntitySquared(mc.renderViewEntity) > 272.0F) {
-							worldRenderersToUpdate.add(worldrenderer);
-						} else {
-							worldRenderersToUpdateList.unshift(worldrenderer);
-						}
+						worldRenderersToUpdate.add(worldrenderer);
 					}
 				}
 			}
@@ -476,8 +472,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	@Override
 	public void setWorldAndLoadRenderers(WorldClient world) {
 
+		worker.lock();
 		worker.setWorld(this, world);
 		super.setWorldAndLoadRenderers(world);
+		worker.unlock();
 	}
 
 	@Override
@@ -723,9 +721,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 									if (t != null) {
 										int cost = 1;
 
-										//if (!fStack.isBoundingBoxInFrustum(t.rendererBoundingBox))
-											//continue;
-
 										CullInfo prev = log.get(t);
 										if (prev != null) {
 											if (prev.facings.contains(pos))
@@ -744,6 +739,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 										}
 										++visited;
 
+										//if (!fStack.isBoundingBoxInFrustum(t.rendererBoundingBox))
+											//continue;
+
 										if (t.skipAllRenderPasses())
 											cost = 0;
 
@@ -752,7 +750,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 										if (prev != null) {
 											data.facings.addAll(prev.facings);
 										}
-										info.facings.add(opp);
 
 										log.put(t, data);
 										queue.add(data);
@@ -774,6 +771,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 								rend.isVisible = false;
 						}
 					}
+					queue.clear();
+					log.clear();
 					lock.unlock();
 					sleep(100);
 				}
@@ -784,10 +783,11 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						// TODO: how is this happening?
 						lock.unlock();
 					}
+				} else {
+					queue.clear();
+					log.clear();
 				}
 				working = false;
-				queue.clear();
-				log.clear();
 			}
 		}
 
