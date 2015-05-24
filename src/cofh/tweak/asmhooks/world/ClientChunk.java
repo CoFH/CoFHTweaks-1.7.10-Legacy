@@ -1,7 +1,9 @@
 package cofh.tweak.asmhooks.world;
 
+import cofh.repack.cofh.lib.util.IdentityLinkedHashList;
 import cofh.repack.cofh.lib.util.LinkedHashList;
 import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
+import cofh.tweak.asmhooks.render.RenderGlobal;
 
 import net.minecraft.block.Block;
 import net.minecraft.world.World;
@@ -20,23 +22,42 @@ public class ClientChunk extends Chunk {
 			super("Chunk Worker");
 		}
 
-		public LinkedHashList<ClientChunk> data = new LinkedHashList<ClientChunk>();
+		public LinkedHashList<ClientChunk> loaded = new IdentityLinkedHashList<ClientChunk>();
+		public LinkedHashList<ClientChunk> modified = new IdentityLinkedHashList<ClientChunk>();
 
 		@Override
 		public void run() {
 
 			for (;;) {
 
-				for (int i = 0; data.size() > 0; ++i) {
-					data.shift().buildSides();
+				for (int i = 0; loaded.size() > 0; ++i) {
+					ClientChunk chunk = loaded.shift().buildSides();
+					if (chunk != null)
+						modified.add(chunk);
 					if ((i & 3) == 0) {
 						i = 0;
-						try {
-							Thread.sleep(3);
-						} catch (InterruptedException e) {
-						}
+						yield();
 					}
 				}
+				for (int i = 0; modified.size() > 0; ++i) {
+					ClientChunk chunk = modified.shift();
+					if (loaded.contains(chunk)) {
+						modified.add(chunk);
+						if (modified.size() == 1)
+							break;
+						continue;
+					}
+					for (VisGraph graph : chunk.visibility) {
+						if (graph.isDirty()) {
+							graph.computeVisibility();
+						}
+					}
+					if ((i & 7) == 0) {
+						i = 0;
+						yield();
+					}
+				}
+				RenderGlobal.worker.dirty = true;
 				try {
 					Thread.sleep(30);
 				} catch (InterruptedException e) {
@@ -91,6 +112,7 @@ public class ClientChunk extends Chunk {
 		boolean r = super.func_150807_a(x, y, z, block, meta);
 		if (r) {
 			checkPosSolid(x & 15, y, z & 15, block);
+			worker.modified.add(this);
 		}
 		return r;
 	}
@@ -99,13 +121,13 @@ public class ClientChunk extends Chunk {
 	public void fillChunk(byte[] data, int x, int z, boolean flag) {
 
 		super.fillChunk(data, x, z, flag);
-		worker.data.add(this);
+		worker.loaded.add(this);
 	}
 
-	void buildSides() {
+	ClientChunk buildSides() {
 
 		if (!this.worldObj.chunkExists(xPosition, zPosition)) {
-			return;
+			return null;
 		}
 		for (int i = 0; i < 16; ++i) {
 			for (int j = 0; j < 16; ++j) {
@@ -114,6 +136,7 @@ public class ClientChunk extends Chunk {
 				}
 			}
 		}
+		return this;
 	}
 
 }

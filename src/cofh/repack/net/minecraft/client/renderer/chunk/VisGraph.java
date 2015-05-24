@@ -14,19 +14,10 @@ public class VisGraph {
 	private static final int Z_OFFSET = (int) Math.pow(16.0D, 1.0D);
 	private static final int Y_OFFSET = (int) Math.pow(16.0D, 2.0D);
 	private static final int[] EDGES = new int[1352];
-
-	/*
-	 * This is a pretty hefty structure: 1340 bytes per 16^3 (40+bytes per object, and the array of long[] in BitSet)
-	 * weighing in around 190 bytes for BitSets, 40 bytes for SetVisibility, and 50 bytes for this.
-	 * ~4,824,000 bytes at view distance 7; This could be halved if it were not reusable, but reusability is part
-	 * of what makes it speedy when recalculating the viewable area.
-	 */
-	private final BitSet opaqueBlocks = new BitSet(4096);
-	private final BitSet visibleBlocks = new BitSet(4096);
-	private int transparentBlocks = 4096;
-	private SetVisibility visibility;
+	private static final SetVisibility ALL_VIS = new SetVisibility();
 
 	static {
+		ALL_VIS.setAllVisible(true);
 		int var2 = 0;
 
 		for (int var3 = 0; var3 < 16; ++var3) {
@@ -39,6 +30,18 @@ public class VisGraph {
 			}
 		}
 	}
+
+	/*
+	 * This is a pretty hefty structure: 1340 bytes per 16^3 (40+bytes per object, and the array of long[] in BitSet)
+	 * weighing in around 190 bytes for BitSets, 40 bytes for SetVisibility, and 50 bytes for this.
+	 * ~4,824,000 bytes at view distance 7; This could be halved if it were not reusable, but reusability is part
+	 * of what makes it speedy when recalculating the viewable area.
+	 */
+	private final BitSet opaqueBlocks = new BitSet(4096);
+	private final BitSet visibleBlocks = new BitSet(4096);
+	private short transparentBlocks = 4096;
+	private boolean dirty = true;
+	private SetVisibility visibility;
 
 	private static int getIndex(int x, int y, int z) {
 
@@ -56,7 +59,7 @@ public class VisGraph {
 		if (prev != opaque) {
 			opaqueBlocks.set(getIndex(x, y, z), opaque);
 			transparentBlocks += opaque ? -1 : 1;
-			visibility = null;
+			dirty = true;
 		}
 	}
 
@@ -66,7 +69,13 @@ public class VisGraph {
 		if (setvisibility != null) {
 			return setvisibility;
 		}
-		setvisibility = new SetVisibility();
+		return ALL_VIS;
+	}
+
+	public void computeVisibility() {
+
+		dirty = false;
+		SetVisibility setvisibility = new SetVisibility();
 
 		if (4096 - transparentBlocks < 256) {
 			setvisibility.setAllVisible(true);
@@ -89,8 +98,7 @@ public class VisGraph {
 			}
 		}
 
-		visibility = setvisibility.clone();
-		return setvisibility;
+		visibility = setvisibility;
 	}
 
 	public Set<EnumFacing> getVisibleFacingsFrom(int x, int y, int z) {

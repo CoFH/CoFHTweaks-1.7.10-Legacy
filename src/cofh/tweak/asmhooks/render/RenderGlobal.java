@@ -11,7 +11,6 @@ import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
@@ -69,10 +68,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		int yaw = MathHelper.floor_float(view.rotationYaw + 45) >> 5;
 		int pitch = MathHelper.floor_float(view.rotationPitch + 45) >> 5;
 		if (yaw != prevRotationYaw || pitch != prevRotationPitch) {
-			prevRotationYaw = yaw;
-			prevRotationPitch = pitch;
-			worker.clean = true;
-			worker.interrupt();
+			worker.run(true);
 		}
 		int lim = worldRenderersToUpdate.size() + workerWorldRenderers.size();
 		if (lim == 0) {
@@ -235,14 +231,13 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	@Override
 	public String getDebugInfoRenders() {
 
-		StringBuilder r = new StringBuilder(3 + 4 + 1 + 4 + 5 + 4 + 5 + 4 + 5 + 4 + 5 + 3 + 5 + 2 + 2);
+		StringBuilder r = new StringBuilder(3 + 4 + 1 + 4 + 5 + 4 + 5 + 4 + 5 + 4 + 5 + 3 + 5 + 2);
 		r.append("C: ").append(renderersBeingRendered).append('/').append(renderersLoaded);
 		r.append(". F: ").append(renderersBeingClipped);
 		r.append(", O: ").append(renderersBeingOccluded);
 		r.append(", E: ").append(renderersSkippingRenderPass);
 		r.append("; I: ").append(dummyRenderInt);
 		r.append(", U: ").append(workerWorldRenderers.size());
-		r.append(" |").append(worker.working ? 'Y' : 'N');
 		return r.toString();
 	}
 
@@ -461,41 +456,29 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		}
 
 		if (rebuild) {
-			//worker.lock();
-			//worker.working = true;
-			//worker.run(true);
-			worker.clean = true;
-			//worker.unlock();
+			worker.run(true);
 		}
 	}
 
 	@Override
 	public void setWorldAndLoadRenderers(WorldClient world) {
 
-		worker.lock();
 		worker.setWorld(this, world);
 		super.setWorldAndLoadRenderers(world);
-		worker.unlock();
 	}
 
 	@Override
 	public void loadRenderers() {
 
-		worker.lock();
 		super.loadRenderers();
-		worker.clean = true;
-		worker.unlock();
+		worker.run(true);
 	}
 
 	@Override
 	protected void markRenderersForNewPosition(int x, int y, int z) {
 
-		worker.lock();
 		markRenderers(x, y, z);
-		worker.working = true;
 		worker.run(true);
-		worker.clean = true;
-		worker.unlock();
 	}
 
 	private int fixPos(int pos, int amt) {
@@ -526,12 +509,12 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		return getRenderer(X, Y, Z);
 	}
 
-	private static RenderWorker worker = new RenderWorker();
+	public static RenderWorker worker = new RenderWorker();
 	static {
-		worker.start();
+		worker.run();
 	}
 
-	private static class RenderWorker extends Thread {
+	public static class RenderWorker extends Thread {
 
 		public RenderWorker() {
 
@@ -541,28 +524,13 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			}//*/
 		}
 
-		public void lock() {
-
-			interrupt();
-			lock.lock();
-		}
-
-		public void unlock() {
-
-			lock.unlock();
-			interrupt();
-		}
-
 		public void setWorld(RenderGlobal rg, WorldClient world) {
 
-			lock();
 			render = rg;
 			theWorld = world;
-			unlock();
 		}
 
-		public volatile boolean working = false, clean = false;
-		private final ReentrantLock lock = new ReentrantLock();
+		public volatile boolean dirty = false;
 		private ArrayDeque<CullInfo> queue = new ArrayDeque<CullInfo>();
 		private Frustrum fStack = new Frustrum();
 		private IdentityHashMap<WorldRenderer, CullInfo> log = new IdentityHashMap<WorldRenderer, CullInfo>();
@@ -573,38 +541,26 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		public void run() {
 
 			for (;;) {
-				run(false);
+				if (dirty) {
+					run(false);
+				} else {
+					try {
+						sleep(300);
+					} catch (InterruptedException e) {
+					}
+				}
 			}
 		}
 
 		public void run(boolean immediate) {
 
-			if (immediate) {
-				if (!worker.isAlive()) {
-					worker = new RenderWorker();
-					worker.lock();
-					worker.start();
-				}
-			}
-
 			l: try {
 				EntityLivingBase view = Minecraft.getMinecraft().renderViewEntity;
-				if (theWorld == null || view == null || !(working || clean || immediate)) {
-					if (!immediate)
-						sleep(10000);
+				if (theWorld == null || view == null) {
 					break l;
 				}
-				if (!immediate) {
-					sleep(300);
-					lock.lockInterruptibly();
-					for (WorldRenderer rend : render.worldRenderers) {
-						rend.isWaitingOnOcclusionQuery = false;
-					}
-					sleep(1);
-				}
-				if (clean) {
-					working = true;
-					clean = false;
+				for (WorldRenderer rend : render.worldRenderers) {
+					rend.isWaitingOnOcclusionQuery = false;
 				}
 				WorldRenderer center;
 				WorldClient theWorld = this.theWorld;
@@ -625,20 +581,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 					center = render.getRenderer(x, y, z);
 					if (center == null) {
-						working = false;
-						if (!immediate)
-							lock.unlock();
+						dirty = false;
 						break l;
 					}
-					if (!center.isInitialized || center.glOcclusionQuery < 0) {
-						center.glOcclusionQuery = 0;
-						if (!center.isInitialized || (!center.isVisible && center.distanceToEntitySquared(view) <= 1128.0F)) {
-							center.needsUpdate = true;
-							center.isVisible = true;
-							render.workerWorldRenderers.push(center);
-						}
-					}
-					center.isVisible = center.isWaitingOnOcclusionQuery = true;
+					markRenderer(center, view);
 					Chunk chunk = theWorld.getChunkFromBlockCoords(center.posX, center.posZ);
 					if (chunk instanceof ClientChunk) {
 						VisGraph sides = ((ClientChunk) chunk).visibility[center.posY >> 4];
@@ -653,7 +599,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							if (t == null)
 								continue;
 
-							CullInfo info = new CullInfo(t, pos, (render.renderDistanceChunks >> 1) * (immediate ? 2 : -1) - 2);
+							CullInfo info = new CullInfo(t, pos, (render.renderDistanceChunks >> 1) * -1 - 2);
 							info.facings.remove(pos);
 							log.put(t, info);
 							queue.add(info);
@@ -662,7 +608,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				}
 				if (!queue.isEmpty()) {
 					@SuppressWarnings("unused")
-					int visited = queue.size();
+					int visited = queue.size(), considered = visited;
 					//fStack.setPosition(p_view.x, p_view.y, p_view.z);
 					//Matrix4 view_m = new Matrix4(ClippingHelperImpl.instance.modelviewMatrix);
 					{
@@ -677,7 +623,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					//Matrix4 view_p = new Matrix4(ClippingHelperImpl.instance.projectionMatrix);
 					//Vector3 p_chunk = new Vector3();
 					// TODO: frustrum stack: https://tomcc.github.io/frustum_clamping.html
-					for (int i = 0; !queue.isEmpty() && !isInterrupted();) {
+					RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal() ^ 1];
+					for (; !queue.isEmpty() && !isInterrupted();) {
 						CullInfo info = queue.pollFirst();
 						if (info == null) {
 							if (!queue.isEmpty())
@@ -685,16 +632,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							break;
 						}
 
+						info.visited = true;
 						WorldRenderer rend = info.rend;
-						if (!rend.isInitialized || rend.glOcclusionQuery < 0) {
-							rend.glOcclusionQuery = 0;
-							if (!rend.isInitialized || (!rend.isVisible && rend.distanceToEntitySquared(view) <= 1128.0F)) {
-								rend.needsUpdate = true;
-								rend.isVisible = true;
-								render.workerWorldRenderers.push(rend);
-							}
-						}
-						rend.isVisible = rend.isWaitingOnOcclusionQuery = true;
+						markRenderer(rend, view);
 						if (info.count > render.renderDistanceChunks)
 							continue;
 
@@ -703,7 +643,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						if (chunk instanceof ClientChunk) {
 							VisGraph sides = ((ClientChunk) chunk).visibility[rend.posY >> 4];
 							RenderPosition opp = info.last;
-							RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal() ^ 1];
 
 							//p_chunk.set(rend.posX + 8, rend.posY + 8, rend.posZ + 8);
 							//view_p.perspective(0, 0, (float) p_chunk.sub(p_view).mag(), 1250);
@@ -719,6 +658,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 									WorldRenderer t = render.getRenderer(rend.posX + pos.x, rend.posY + pos.y, rend.posZ + pos.z);
 									if (t != null) {
+										++considered;
 										int cost = 1;
 
 										CullInfo prev = log.get(t);
@@ -726,18 +666,21 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 											if (prev.facings.contains(pos))
 												continue;
 
-											t: if (prev.facings.size() == 1) {
-												Chunk o = theWorld.getChunkFromBlockCoords(t.posX, t.posZ);
-												if (!(o instanceof ClientChunk)) {
-													break t;
-												}
+											t: if (!prev.visited) {
+												Chunk o;
+												if (t.posX != rend.posX || t.posZ != rend.posZ) {
+													o = theWorld.getChunkFromBlockCoords(t.posX, t.posZ);
+													if (!(o instanceof ClientChunk)) {
+														break t;
+													}
+												} else
+													o = chunk;
 												VisGraph oSides = ((ClientChunk) o).visibility[t.posY >> 4];
 												if (oSides.getVisibility().isVisible(pos.facing, prev.last.facing)) {
 													continue;
 												}
 											}
 										}
-										++visited;
 
 										//if (!fStack.isBoundingBoxInFrustum(t.rendererBoundingBox))
 											//continue;
@@ -745,6 +688,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 										if (t.skipAllRenderPasses())
 											cost = 0;
 
+										++visited;
 										CullInfo data = new CullInfo(t, pos, info.count + cost);
 
 										if (prev != null) {
@@ -757,42 +701,34 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 								}
 							}
 						}
-						if ((++i & 31) == 0 && !immediate) {
-							lock.unlock();
-							sleep(1);
-							lock.lockInterruptibly();
-						}
 					}
 				}
-				if (!immediate) {
-					if (!isInterrupted()) {
 						for (WorldRenderer rend : render.worldRenderers) {
 							if (!rend.isWaitingOnOcclusionQuery)
 								rend.isVisible = false;
 						}
-					}
 					queue.clear();
 					log.clear();
-					lock.unlock();
-					sleep(100);
-				}
-			} catch (InterruptedException e) {
 			} finally {
-				if (!immediate) {
-					while (lock.getHoldCount() != 0) {
-						// TODO: how is this happening?
-						lock.unlock();
-					}
-				} else {
-					queue.clear();
-					log.clear();
+				dirty = false;
+			}
+		}
+
+		private void markRenderer(WorldRenderer rend, EntityLivingBase view) {
+
+			rend.isVisible = rend.isWaitingOnOcclusionQuery = true;
+			if (!rend.isInitialized || rend.glOcclusionQuery < 0) {
+				rend.glOcclusionQuery = 0;
+				rend.needsUpdate = true;
+				if (!rend.isInitialized || (rend.distanceToEntitySquared(view) <= 1128.0F)) {
+					render.workerWorldRenderers.push(rend);
 				}
-				working = false;
 			}
 		}
 
 		private static class CullInfo {
 
+			boolean visited = false;
 			final int count;
 			final WorldRenderer rend;
 			final RenderPosition last;
