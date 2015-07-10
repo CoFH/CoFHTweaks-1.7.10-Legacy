@@ -519,7 +519,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 	public static RenderWorker worker = new RenderWorker();
 	static {
-		worker.run();
+		worker.start();
 	}
 
 	public static class RenderWorker extends Thread {
