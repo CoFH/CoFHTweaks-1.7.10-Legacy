@@ -519,7 +519,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 	public static RenderWorker worker = new RenderWorker();
 	static {
-		worker.start();
+		//worker.start();
 	}
 
 	public static class RenderWorker extends Thread {
@@ -640,8 +640,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					for (; !queue.isEmpty() && !isInterrupted();) {
 						CullInfo info = queue.pollFirst();
 						if (info == null) {
-							if (!queue.isEmpty())
-								throw new NullPointerException();
 							break;
 						}
 
