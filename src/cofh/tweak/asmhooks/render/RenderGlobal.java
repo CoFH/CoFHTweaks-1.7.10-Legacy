@@ -2,12 +2,11 @@ package cofh.tweak.asmhooks.render;
 
 import cofh.repack.cofh.lib.util.IdentityLinkedHashList;
 import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
+import cofh.tweak.CoFHTweaks;
 import cofh.tweak.asmhooks.world.ClientChunk;
 import cofh.tweak.util.Frustrum;
 import cofh.tweak.util.Vector3;
 import cpw.mods.fml.common.FMLLog;
-import cpw.mods.fml.common.Loader;
-import cpw.mods.fml.common.LoaderState;
 
 import java.util.ArrayDeque;
 import java.util.EnumSet;
@@ -467,7 +466,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	public void setWorldAndLoadRenderers(WorldClient world) {
 
 		if (world != null) {
-			if (!Loader.instance().hasReachedState(LoaderState.SERVER_ABOUT_TO_START)) {
+			if (!CoFHTweaks.canHaveWorld()) {
 				FMLLog.bigWarning("World exists prior to starting the server!");
 			}
 		}
@@ -567,7 +566,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				if (theWorld == null || view == null) {
 					break l;
 				} else {
-					if (!Loader.instance().hasReachedState(LoaderState.SERVER_ABOUT_TO_START)) {
+					if (!CoFHTweaks.canHaveWorld()) {
 						FMLLog.bigWarning("World exists prior to starting the server!");
 						return;
 					}

@@ -3,10 +3,9 @@ package cofh.tweak.asmhooks.world;
 import cofh.repack.cofh.lib.util.IdentityLinkedHashList;
 import cofh.repack.cofh.lib.util.LinkedHashList;
 import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
+import cofh.tweak.CoFHTweaks;
 import cofh.tweak.asmhooks.render.RenderGlobal;
 import cpw.mods.fml.common.FMLLog;
-import cpw.mods.fml.common.Loader;
-import cpw.mods.fml.common.LoaderState;
 
 import net.minecraft.block.Block;
 import net.minecraft.world.World;
@@ -76,7 +75,7 @@ public class ClientChunk extends Chunk {
 		for (int i = 0; i < 16; ++i) {
 			internalSides[i] = new VisGraph();
 		}
-		if (!Loader.instance().hasReachedState(LoaderState.SERVER_ABOUT_TO_START)) {
+		if (!CoFHTweaks.canHaveWorld()) {
 			FMLLog.bigWarning("World exists prior to starting the server!");
 		}
 	}

@@ -1,8 +1,17 @@
 package cofh.tweak;
 
+import cofh.tweak.asm.LoadingPlugin.CoFHDummyContainer;
+import cpw.mods.fml.common.Loader;
+import cpw.mods.fml.common.LoaderState;
+
 
 public class CoFHTweaks {
 
-	public static String version = "1.7.10R0.2.0B2";
+	public static String version = "1.7.10R1.0.0RC1";
+
+	public static boolean canHaveWorld() {
+
+		return CoFHDummyContainer.onServer || Loader.instance().hasReachedState(LoaderState.SERVER_ABOUT_TO_START);
+	}
 
 }

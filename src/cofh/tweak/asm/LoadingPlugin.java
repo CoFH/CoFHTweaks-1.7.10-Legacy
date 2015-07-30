@@ -6,9 +6,13 @@ import cofh.tweak.asmhooks.render.RenderGlobal;
 import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
 import cpw.mods.fml.common.DummyModContainer;
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.LoadController;
 import cpw.mods.fml.common.ModMetadata;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.network.FMLNetworkEvent.ClientConnectedToServerEvent;
+import cpw.mods.fml.common.network.FMLNetworkEvent.ClientDisconnectionFromServerEvent;
 import cpw.mods.fml.common.versioning.DefaultArtifactVersion;
 import cpw.mods.fml.common.versioning.VersionParser;
 import cpw.mods.fml.relauncher.FMLInjectionData;
@@ -112,6 +116,8 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 
 	public static class CoFHDummyContainer extends DummyModContainer {
 
+		public static boolean onServer;
+
 		public CoFHDummyContainer() {
 
 			super(new ModMetadata());
@@ -134,6 +140,21 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 		public void init(FMLInitializationEvent evt) {
 
 			Minecraft.getMinecraft().renderGlobal = new RenderGlobal(Minecraft.getMinecraft());
+			FMLCommonHandler.instance().bus().register(this);
 		}
+
+		@SubscribeEvent
+		public void connect(ClientConnectedToServerEvent evt) {
+
+			onServer = true;
+		}
+
+		@SubscribeEvent
+		public void disconnect(ClientDisconnectionFromServerEvent evt) {
+
+			onServer = false;
+		}
+
 	}
+
 }
