@@ -50,7 +50,7 @@ public class VisGraph {
 
 	public boolean isDirty() {
 
-		return visibility == null;
+		return dirty;
 	}
 
 	public void setOpaque(int x, int y, int z, boolean opaque) {
