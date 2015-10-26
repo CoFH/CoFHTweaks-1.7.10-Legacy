@@ -18,7 +18,7 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 			tickRate = 10;
 	}
 
-    ArrayList<EntityAITaskEntry> arraylist = new ArrayList<EntityAITaskEntry>();
+    ArrayList<EntityAITaskEntry> taskEntriesToStart = new ArrayList<EntityAITaskEntry>();
 
     @Override
 	public void onUpdateTasks() {
@@ -46,10 +46,10 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
                     if (!entityaitaskentry.action.shouldExecute())
                     	this.executingTaskEntries.remove(entityaitaskentry);
                     else
-                    	arraylist.add(entityaitaskentry);
+                    	taskEntriesToStart.add(entityaitaskentry);
                 } else {
-	                if (entityaitaskentry.action.shouldExecute() && this.canUse(entityaitaskentry)) {
-	                    arraylist.add(entityaitaskentry);
+	                if (this.canUse(entityaitaskentry) && entityaitaskentry.action.shouldExecute()) {
+	                    taskEntriesToStart.add(entityaitaskentry);
 	                    this.executingTaskEntries.add(entityaitaskentry);
 	                }
                 }
@@ -84,14 +84,14 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 
         this.theProfiler.startSection("goalStart");
 
-        for (int i = 0, e = arraylist.size(); i < e; ++i) {
-            entityaitaskentry = arraylist.get(i);
+        for (int i = 0, e = taskEntriesToStart.size(); i < e; ++i) {
+            entityaitaskentry = taskEntriesToStart.get(i);
             String name = this.theProfiler.profilingEnabled ? entityaitaskentry.action.getClass().getSimpleName() : "$";
             this.theProfiler.startSection(name);
             entityaitaskentry.action.startExecuting();
             this.theProfiler.endSection();
         }
-        arraylist.clear();
+        taskEntriesToStart.clear();
 
         this.theProfiler.endSection();
         this.theProfiler.startSection("goalTick");
