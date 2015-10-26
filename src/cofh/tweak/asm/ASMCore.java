@@ -469,7 +469,7 @@ class ASMCore {
 				m.instructions.insert(new VarInsnNode(ALOAD, 0));
 			}
 
-			ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+			ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
 			cn.accept(cw);
 			bytes = cw.toByteArray();
 		}
