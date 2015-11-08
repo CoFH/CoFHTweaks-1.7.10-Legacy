@@ -80,7 +80,7 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 	@Override
 	public String getAccessTransformerClass() {
 
-		return "cofh.tweak.asm.CoFHAccessTransformer";
+		return null;
 	}
 
 	@Override

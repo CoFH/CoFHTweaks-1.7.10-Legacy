@@ -15,6 +15,7 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FrameNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
@@ -389,7 +390,7 @@ class ASMCore {
 					"(Lnet/minecraft/entity/item/EntityItem;)V", false));
 			m.instructions.add(new InsnNode(RETURN));
 
-			ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+			ClassWriter cw = new ClassWriter(0);
 			cn.accept(cw);
 			bytes = cw.toByteArray();
 		}
@@ -456,6 +457,7 @@ class ASMCore {
 				list.add(new JumpInsnNode(IFNE, label));
 				list.add(new InsnNode(ICONST_0));
 				list.add(new InsnNode(IRETURN));
+				list.add(new FrameNode(F_SAME, 0, null, 0, null));
 				list.add(label);
 
 				pass.instructions.insertBefore(pass.instructions.getFirst(), list);
@@ -469,7 +471,7 @@ class ASMCore {
 				m.instructions.insert(new VarInsnNode(ALOAD, 0));
 			}
 
-			ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+			ClassWriter cw = new ClassWriter(0);
 			cn.accept(cw);
 			bytes = cw.toByteArray();
 		}

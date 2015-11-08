@@ -127,6 +127,7 @@
 			<manifest file="${classes.dir}/MANIFEST.MF">
 				<attribute name="FMLCorePlugin" value="cofh.tweak.asm.LoadingPlugin"/>
 				<attribute name="FMLCorePluginContainsFMLMod" value="false"/>
+				<attribute name="FMLAT" value="CoFHTweak_at.cfg"/>
 			</manifest>
 			<echo file="${classes.dir}/vers.prop">${build.full}${build.number}</echo>
 			<jar destfile="${dist.dir}/${build.name}${build.full}@{build}.jar"
