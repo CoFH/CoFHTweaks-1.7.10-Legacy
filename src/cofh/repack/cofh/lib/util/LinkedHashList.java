@@ -394,7 +394,6 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 			synchronized (hashTable) {
 				int newTableSize = old.length * 2, newMask = newTableSize - 1;
 				newTable = new Entry[newTableSize];
-				mask = newMask;
 
 				for (int bucket = old.length; bucket-- > 0;) {
 					Entry entry = old[bucket];
@@ -407,6 +406,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 					}
 				}
 				hashTable = newTable;
+				mask = newMask;
 			}
 		}
 	}

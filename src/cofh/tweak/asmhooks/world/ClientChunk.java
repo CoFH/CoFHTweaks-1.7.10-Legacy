@@ -44,9 +44,6 @@ public class ClientChunk extends Chunk {
 				for (int i = 0; modified.size() > 0; ++i) {
 					ClientChunk chunk = modified.shift();
 					if (loaded.contains(chunk)) {
-						modified.add(chunk);
-						if (modified.size() == 1)
-							break;
 						continue;
 					}
 					for (VisGraph graph : chunk.visibility) {
