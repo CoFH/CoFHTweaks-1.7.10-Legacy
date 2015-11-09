@@ -53,7 +53,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		int o = frustumCheckOffset++;
 		for (int i = 0, e = worldRenderers.length; i < e; ++i) {
 			WorldRenderer rend = worldRenderers[i];
-			if (rend.skipAllRenderPasses())
+			boolean skip = rend.skipAllRenderPasses();
+			if (skip)
 				continue;
 			boolean frustrum = rend.isInFrustum;
 			if (!frustrum || ((i + o) & 15) == 0) {
@@ -97,6 +98,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				}
 
 				worldrenderer.updateRenderer(view);
+				worldrenderer.glOcclusionQuery = 0;
 				worldrenderer.needsUpdate = false;
 
 				if (i > 5) {
@@ -392,10 +394,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 					WorldRenderer worldrenderer = worldRenderers[(i2 * renderChunksTall + l2) * renderChunksWide + j1];
 					boolean flag = worldrenderer.needsUpdate;
-					worldrenderer.isWaitingOnOcclusionQuery = false;
 					worldrenderer.setPosition(k1, i3, j2);
 
-					if (!flag && worldrenderer.needsUpdate) {
+					if (!flag && worldrenderer.needsUpdate || !worldrenderer.isInitialized) {
 						worldRenderersToUpdate.add(worldrenderer);
 					}
 				}
@@ -445,7 +446,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						} else {
 							Chunk chunk = theWorld.getChunkFromBlockCoords(worldrenderer.posX, worldrenderer.posZ);
 							if (chunk instanceof ClientChunk) {
-								if (((ClientChunk) chunk).visibility[worldrenderer.posY >> 4].isDirty()) {
+								if (((ClientChunk) chunk).visibility[worldrenderer.posY >> 4].isRenderDirty()) {
 									worldrenderer.glOcclusionQuery = -1;
 									rebuild = true;
 								}
@@ -585,8 +586,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					int y = MathHelper.floor_double(view.posY + view.getEyeHeight());
 					int z = MathHelper.floor_double(view.posZ);
 					view_look.set(0, 0, -1);
-					view_look.rotate(view.rotationPitch * (float)Math.PI / 180, Vector3.axes[3]);
-					view_look.rotate(view.rotationYaw * (float)Math.PI / 180, Vector3.axes[1]);
+					view_look.rotate(view.rotationPitch * (float) Math.PI / 180, Vector3.axes[3]);
+					view_look.rotate(view.rotationYaw * (float) Math.PI / 180, Vector3.axes[1]);
 					view_look.normalize();
 
 					p_view.set(view_look).multiply(64).add(x, y, z);
@@ -643,16 +644,17 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						}
 
 						info.visited = true;
-						WorldRenderer rend = info.rend;
-						markRenderer(rend, view);
 						if (info.count > render.renderDistanceChunks)
 							continue;
 
+						WorldRenderer rend = info.rend;
 						Chunk chunk = theWorld.getChunkFromBlockCoords(rend.posX, rend.posZ);
 
 						if (chunk instanceof ClientChunk) {
 							VisGraph sides = ((ClientChunk) chunk).visibility[rend.posY >> 4];
 							RenderPosition opp = info.last;
+
+							markRenderer(rend, view);
 
 							//p_chunk.set(rend.posX + 8, rend.posY + 8, rend.posZ + 8);
 							//view_p.perspective(0, 0, (float) p_chunk.sub(p_view).mag(), 1250);
@@ -693,7 +695,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 										}
 
 										//if (!fStack.isBoundingBoxInFrustum(t.rendererBoundingBox))
-											//continue;
+										//continue;
 
 										if (t.skipAllRenderPasses())
 											cost = 0;
@@ -713,12 +715,12 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						}
 					}
 				}
-						for (WorldRenderer rend : render.worldRenderers) {
-							if (!rend.isWaitingOnOcclusionQuery)
-								rend.isVisible = false;
-						}
-					queue.clear();
-					log.clear();
+				for (WorldRenderer rend : render.worldRenderers) {
+					if (!rend.isWaitingOnOcclusionQuery)
+						rend.isVisible = false;
+				}
+				queue.clear();
+				log.clear();
 			} finally {
 				dirty = false;
 			}
@@ -728,7 +730,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 			rend.isVisible = rend.isWaitingOnOcclusionQuery = true;
 			if (!rend.isInitialized || rend.glOcclusionQuery < 0) {
-				rend.glOcclusionQuery = 0;
 				rend.needsUpdate = true;
 				if (!rend.isInitialized || (rend.distanceToEntitySquared(view) <= 1128.0F)) {
 					render.workerWorldRenderers.push(rend);

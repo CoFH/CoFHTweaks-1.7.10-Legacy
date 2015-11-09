@@ -40,7 +40,7 @@ public class VisGraph {
 	private final BitSet opaqueBlocks = new BitSet(4096);
 	private final BitSet visibleBlocks = new BitSet(4096);
 	private short transparentBlocks = 4096;
-	private boolean dirty = true;
+	private boolean dirty = true, computedVis = true;
 	private SetVisibility visibility;
 
 	private static int getIndex(int x, int y, int z) {
@@ -51,6 +51,13 @@ public class VisGraph {
 	public boolean isDirty() {
 
 		return dirty;
+	}
+
+	public boolean isRenderDirty() {
+
+		boolean r = computedVis;
+		computedVis = false;
+		return r;
 	}
 
 	public void setOpaque(int x, int y, int z, boolean opaque) {
@@ -99,6 +106,7 @@ public class VisGraph {
 		}
 
 		visibility = setvisibility;
+		computedVis = true;
 	}
 
 	public Set<EnumFacing> getVisibleFacingsFrom(int x, int y, int z) {
