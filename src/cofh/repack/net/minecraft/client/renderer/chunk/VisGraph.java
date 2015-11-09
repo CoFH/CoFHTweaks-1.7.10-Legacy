@@ -55,6 +55,9 @@ public class VisGraph {
 
 	public boolean isRenderDirty() {
 
+		if (isDirty()) {
+			return true;
+		}
 		boolean r = computedVis;
 		computedVis = false;
 		return r;
