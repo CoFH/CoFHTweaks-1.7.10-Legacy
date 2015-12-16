@@ -29,6 +29,9 @@ import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.HyperlinkListener;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.FontRenderer;
+import net.minecraftforge.client.event.RenderGameOverlayEvent;
+import net.minecraftforge.common.MinecraftForge;
 
 @IFMLLoadingPlugin.TransformerExclusions({ "cofh.tweak.asm." })
 @IFMLLoadingPlugin.SortingIndex(1002)
@@ -141,6 +144,25 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 
 			Minecraft.getMinecraft().renderGlobal = new RenderGlobal(Minecraft.getMinecraft());
 			FMLCommonHandler.instance().bus().register(this);
+			MinecraftForge.EVENT_BUS.register(this);
+		}
+
+		@SubscribeEvent
+		public void onRenderHud(RenderGameOverlayEvent.Text evt) {
+
+			if (evt.left.size() > 1 && evt.right.size() > 1) {
+				String t = evt.left.get(1);
+				String t2 = evt.right.get(1);
+
+				if (t != null && t2 != null) {
+					int width = evt.resolution.getScaledWidth();
+					FontRenderer fr = Minecraft.getMinecraft().fontRenderer;
+
+					if (width - fr.getStringWidth(t) < (fr.getStringWidth(t2) + fr.getStringWidth("QQQ"))) {
+						evt.right.add(1, null);
+					}
+				}
+			}
 		}
 
 		@SubscribeEvent
