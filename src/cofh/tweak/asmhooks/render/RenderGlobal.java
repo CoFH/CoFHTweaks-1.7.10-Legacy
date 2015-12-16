@@ -262,25 +262,24 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		return r.toString();
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public int sortAndRender(EntityLivingBase view, int pass, double tick) {
 
-        theWorld.theProfiler.startSection("sortchunks");
+		theWorld.theProfiler.startSection("sortchunks");
 
-        if (mc.gameSettings.renderDistanceChunks != renderDistanceChunks) {
-            loadRenderers();
-        }
+		if (mc.gameSettings.renderDistanceChunks != renderDistanceChunks) {
+			loadRenderers();
+		}
 
-        if (pass == 0) {
-            renderersLoaded = 0;
-            dummyRenderInt = 0;
-            renderersBeingClipped = 0;
-            renderersBeingOccluded = 0;
-            renderersBeingRendered = 0;
-            renderersSkippingRenderPass = 0;
-            renderersNeedUpdate = 0;
-        }
+		if (pass == 0) {
+			renderersLoaded = 0;
+			dummyRenderInt = 0;
+			renderersBeingClipped = 0;
+			renderersBeingOccluded = 0;
+			renderersBeingRendered = 0;
+			renderersSkippingRenderPass = 0;
+			renderersNeedUpdate = 0;
+		}
 
 		if (prevChunkSortX != view.chunkCoordX || prevChunkSortY != view.chunkCoordY || prevChunkSortZ != view.chunkCoordZ) {
 			prevChunkSortX = view.chunkCoordX;
@@ -321,12 +320,12 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			}
 		}
 
-        theWorld.theProfiler.endStartSection("render");
-        RenderHelper.disableStandardItemLighting();
-        int k = renderSortedRenderers(0, sortedWorldRendererEnd, pass, tick);
+		theWorld.theProfiler.endStartSection("render");
+		RenderHelper.disableStandardItemLighting();
+		int k = renderSortedRenderers(0, sortedWorldRendererEnd, pass, tick);
 
-        theWorld.theProfiler.endSection();
-        return k;
+		theWorld.theProfiler.endSection();
+		return k;
 	}
 
 	@Override
