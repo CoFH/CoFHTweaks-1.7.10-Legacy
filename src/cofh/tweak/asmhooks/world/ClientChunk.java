@@ -31,8 +31,8 @@ public class ClientChunk extends Chunk {
 		public void run() {
 
 			for (;;) {
-
-				for (int i = 0; loaded.size() > 0; ++i) {
+				int i = 0;
+				for (; loaded.size() > 0; ++i) {
 					ClientChunk chunk = loaded.shift().buildSides();
 					if (chunk != null)
 						modified.add(chunk);
@@ -41,7 +41,8 @@ public class ClientChunk extends Chunk {
 						yield();
 					}
 				}
-				for (int i = 0; modified.size() > 0; ++i) {
+				boolean work = i > 0;
+				for (i = 0; modified.size() > 0; ++i) {
 					ClientChunk chunk = modified.shift();
 					if (loaded.contains(chunk)) {
 						continue;
@@ -56,7 +57,7 @@ public class ClientChunk extends Chunk {
 						yield();
 					}
 				}
-				RenderGlobal.worker.dirty = true;
+				RenderGlobal.worker.dirty = (i > 0) | work;
 				try {
 					Thread.sleep(30);
 				} catch (InterruptedException e) {
