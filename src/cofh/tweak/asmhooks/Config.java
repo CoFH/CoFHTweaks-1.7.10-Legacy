@@ -1,81 +1,90 @@
 package cofh.tweak.asmhooks;
 
-import com.google.common.base.Throwables;
+import cofh.repack.tweak.codechicken.lib.config.ConfigFile;
+import cofh.repack.tweak.codechicken.lib.config.ConfigTag;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Properties;
-
-import org.apache.logging.log4j.core.helpers.Loader;
 
 public class Config {
 
-	static Properties config;
+	static ConfigFile config;
 
 	public static void loadConfig(File file) {
 
-		try {
-			new File(file, "config/cofh/tweak").mkdirs();
-			file = new File(file, "config/cofh/tweak/common.prop");
-			if (file.createNewFile()) {
-				copyFileUsingStream("assets/cofh/tweak/default.prop", file);
+		{
+			File folder = new File(file, "config/cofh/tweak");
+			if (folder.exists() || folder.mkdirs()) {
+				folder = new File(folder, "common.prop");
+				if (folder.exists()) {
+
+					Properties config = new Properties();
+					try {
+						config.load(new FileReader(folder));
+					} catch (Throwable e) {
+					}
+
+					stackItems = Boolean.parseBoolean(config.getProperty("StackItems", String.valueOf(stackItems)));
+					collideEntities = Boolean.parseBoolean(config.getProperty("EntityCollisions", String.valueOf(collideEntities)));
+					animateTextures = Boolean.parseBoolean(config.getProperty("AnimatedTextures", String.valueOf(animateTextures)));
+					lightChunks = Boolean.parseBoolean(config.getProperty("ChunkLighting", String.valueOf(lightChunks)));
+					agressiveCulling = Boolean.parseBoolean(config.getProperty("AgressiveCulling", String.valueOf(agressiveCulling)));
+					distantCulling = Boolean.parseBoolean(config.getProperty("DistantCulling", String.valueOf(distantCulling)));
+					fastBlocks = Boolean.parseBoolean(config.getProperty("FastClientSetBlock", String.valueOf(fastBlocks)));
+					agressiveAICulling = Boolean.parseBoolean(config.getProperty("AgressiveAIReduction", String.valueOf(agressiveAICulling)));
+
+					folder.deleteOnExit();
+				}
 			}
-		} catch (IOException e) {
-			Throwables.propagate(e);
+		}
+		file = new File(file, "config/cofh/tweak/common.cfg");
+
+		config = new ConfigFile(file);
+
+		{
+			config.getTag("Client").useBraces().setNewLineMode(2);
+			config.getTag("Server").useBraces().setNewLineMode(2);
 		}
 
-		config = new Properties();
-		try {
-			config.load(new FileReader(file));
-		} catch (Throwable e) {
-			Throwables.propagate(e);
-		}
+		ConfigTag tag;
+		String comment;
 
-		stackItems = Boolean.parseBoolean(config.getProperty("StackItems", "true"));
-		collideEntities = Boolean.parseBoolean(config.getProperty("EntityCollisions", "true"));
-		animateTextures = Boolean.parseBoolean(config.getProperty("AnimatedTextures", "true"));
-		lightChunks = Boolean.parseBoolean(config.getProperty("ChunkLighting", "true"));
-		agressiveCulling = Boolean.parseBoolean(config.getProperty("AgressiveCulling", "false"));
-		distantCulling = Boolean.parseBoolean(config.getProperty("DistantCulling", "false"));
-		fastBlocks = Boolean.parseBoolean(config.getProperty("FastClientSetBlock", "false"));
-		agressiveAICulling = Boolean.parseBoolean(config.getProperty("AgressiveAIReduction", "false"));
+		comment = "If true, EntityItems will attempt to stack in-world. This overrides the setting in CoFHCore.";
+		(tag = config.getTag("StackItems")).setComment(comment);
+		stackItems = tag.getBooleanValue(stackItems);
+		comment = "If true, Entities will attempt to collide/push with each other.";
+		(tag = config.getTag("EntityCollisions")).setComment(comment);
+		collideEntities = tag.getBooleanValue(collideEntities);
+		comment = "If true, the client will perform in-depth lighting on chunks and the server will redundantly update lighting near players.";
+		(tag = config.getTag("ChunkLighting")).setComment(comment);
+		lightChunks = tag.getBooleanValue(lightChunks);
+
+		comment = "If true, the server-side AI will not process as frequently. On heavily burdened servers this will manifest as mobs not doing anything every few ticks";
+		(tag = config.getTag("Server.AggressiveAIReduction")).setComment(comment);
+		agressiveAICulling = tag.getBooleanValue(agressiveAICulling);
+
+		comment = "If true, textures will animate. The setting in CoFHCore overrides this.";
+		(tag = config.getTag("Client.AnimatedTextures")).setComment(comment);
+		animateTextures = tag.getBooleanValue(animateTextures);
+		comment = "If true, entities will be aggressively culled from rendering when tightly packed";
+		(tag = config.getTag("Client.AggressiveCulling")).setComment(comment);
+		agressiveCulling = tag.getBooleanValue(agressiveCulling);
+		comment = "If true, entities will be aggressively culled from rendering when far away";
+		(tag = config.getTag("Client.DistantCulling")).setComment(comment);
+		distantCulling = tag.getBooleanValue(distantCulling);
+		comment = "If true, the client will not process lighting updates when blocks are changed via packets";
+		(tag = config.getTag("Client.FastSetBlock")).setComment(comment);
+		fastBlocks = tag.getBooleanValue(fastBlocks);
 	}
 
-	public static boolean stackItems;
-	public static boolean collideEntities;
-	public static boolean animateTextures;
-	public static boolean fastBlocks;
-	public static boolean lightChunks;
-	public static boolean agressiveCulling;
-	public static boolean distantCulling;
-	public static boolean agressiveAICulling;
-
-	@SuppressWarnings("resource")
-	public static void copyFileUsingStream(String source, File dest) throws IOException {
-
-		InputStream is = null;
-		OutputStream os = null;
-		try {
-			is = Loader.getResource(source, null).openStream();
-			os = new FileOutputStream(dest);
-
-			byte[] buffer = new byte[1024];
-			int length;
-			while ((length = is.read(buffer)) > 0) {
-				os.write(buffer, 0, length);
-			}
-		} finally {
-			if (is != null) {
-				is.close();
-			}
-			if (os != null) {
-				os.close();
-			}
-		}
-	}
+	public static boolean stackItems = true;
+	public static boolean collideEntities = true;
+	public static boolean animateTextures = true;
+	public static boolean fastBlocks = false;
+	public static boolean lightChunks = true;
+	public static boolean agressiveCulling = false;
+	public static boolean distantCulling = false;
+	public static boolean agressiveAICulling = false;
 
 }
