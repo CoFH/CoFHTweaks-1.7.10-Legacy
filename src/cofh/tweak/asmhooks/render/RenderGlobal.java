@@ -77,8 +77,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	public boolean updateRenderers(EntityLivingBase view, boolean p_72716_2_) {
 
 		theWorld.theProfiler.startSection("scan");
-		int yaw = MathHelper.floor_float(view.rotationYaw + 45) >> 2;
-		int pitch = MathHelper.floor_float(view.rotationPitch + 45) >> 2;
+		int yaw = MathHelper.floor_float(view.rotationYaw + 45) >> 4;
+		int pitch = MathHelper.floor_float(view.rotationPitch + 45) >> 4;
 		if (worker.dirty || yaw != prevRotationYaw || pitch != prevRotationPitch) {
 			worker.run(true);
 			prevRotationYaw = yaw;
