@@ -9,6 +9,7 @@ import cofh.tweak.util.Vector3;
 import cpw.mods.fml.common.FMLLog;
 
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -223,7 +224,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 			if (flag && entity != view || mc.gameSettings.thirdPersonView != 0 || view.isPlayerSleeping()) {
 				WorldRenderer rend = getRenderer(entity.posX, entity.posY, entity.posZ);
-				if (rend == null || !rend.isVisible) {
+				if (rend != null && !rend.isVisible) {
 					++countEntitiesHidden;
 					continue;
 				}
@@ -745,11 +746,42 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 					center = render.getRenderer(x, y, z);
 					if (center == null) {
-						//int level = y > 5 ? 250 : 5;
-						//final int limit = -render.renderDistanceChunks - 1;
-						// TODO: explore outward in a diamond; leading-edge like
-						dirty = false;
-						break l;
+						int level = y > 5 ? 250 : 5;
+						center = render.getRenderer(x, level, z);
+						if (center == null) {
+							dirty = false;
+							break l;
+						}
+						RenderPosition pos = y < 5 ? RenderPosition.UP : RenderPosition.DOWN;
+						{
+							CullInfo info = new CullInfo(center, pos, -2);
+							info.facings.addAll(RenderPosition.SIDES);
+							info.facings.remove(pos);
+							log.put(center, info);
+							queue.add(info);
+						}
+						boolean allNull = false;
+						for (int size = 1; !allNull; ++size) {
+							allNull = true;
+							for (int i = 0, j = size; i <= size; ) {
+								for (int k = 0; k < 4; ++k) {
+									int xm = (k & 1) == 0 ? -1 : 1;
+									int zm = (k & 2) == 0 ? -1 : 1;
+									center = render.getRenderer(x + i * 16 * xm, level, z + j * 16 * zm);
+									if (center == null) {
+										continue;
+									}
+									allNull = false;
+									CullInfo info = new CullInfo(center, pos, -2);
+									info.facings.addAll(RenderPosition.SIDES);
+									info.facings.remove(pos);
+									log.put(center, info);
+									queue.add(info);
+								}
+								++i;
+								--j;
+							}
+						}
 					} else {
 						Chunk chunk = theWorld.getChunkFromBlockCoords(center.posX, center.posZ);
 						if (chunk instanceof ClientChunk) {
@@ -942,6 +974,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		public static final RenderPosition[] POSITIONS = values();
 		public static final RenderPosition[][] POSITIONS_BIAS = new RenderPosition[6][6];
 		public static final RenderPosition[] FROM_FACING = new RenderPosition[6];
+		public static final List<RenderPosition> SIDES = Arrays.asList(POSITIONS).subList(1, 6);
 		static {
 			for (int i = 0; i < 6; ++i) {
 				RenderPosition pos = POSITIONS[i];
