@@ -162,6 +162,8 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 						evt.right.add(1, null);
 					}
 				}
+			} else if (!runtimeDeobfEnabled) {
+				evt.left.add(0, Minecraft.getMinecraft().debug);
 			}
 		}
 
