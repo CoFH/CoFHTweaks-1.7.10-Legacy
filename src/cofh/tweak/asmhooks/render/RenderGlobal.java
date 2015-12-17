@@ -602,9 +602,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			minBlockX = 0;
 			minBlockY = 0;
 			minBlockZ = 0;
-			maxBlockX = renderChunksWide;
-			maxBlockY = renderChunksTall;
-			maxBlockZ = renderChunksDeep;
+			maxBlockX = renderChunksWide * 16;
+			maxBlockY = renderChunksTall * 16;
+			maxBlockZ = renderChunksDeep * 16;
 
 			this.worldRenderersToUpdate.clear();
 			this.tileEntities.clear();
@@ -660,11 +660,11 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 	private WorldRenderer getRenderer(int x, int y, int z) {
 
-		if (y > maxBlockY || y < minBlockY)
+		if ((y - 15) > maxBlockY || y < minBlockY)
 			return null;
-		if (x > maxBlockX || x < minBlockX)
+		if ((x - 15) > maxBlockX || x < minBlockX)
 			return null;
-		if (z > maxBlockZ || z < minBlockZ)
+		if ((z - 15) > maxBlockZ || z < minBlockZ)
 			return null;
 		x = fixPos(x, renderChunksWide);
 		y = fixPos(y, renderChunksTall);
