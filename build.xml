@@ -95,7 +95,7 @@
 	
 	<macrodef name="move-transformers"><sequential>
 
-		<copy file="${resources.dir}/CoFHTweak_at.cfg" tofile="${transformers.dir}/z_CoFH_at.cfg"/>
+		<copy file="${resources.dir}/META-INF/CoFHTweak_at.cfg" tofile="${transformers.dir}/CoFHTweak_at.cfg"/>
 		
 	</sequential></macrodef>
 	
