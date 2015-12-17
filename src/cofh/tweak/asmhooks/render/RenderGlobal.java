@@ -39,6 +39,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	private int renderersNeedUpdate;
 	private int prevRotationPitch = -9999;
 	private int prevRotationYaw = -9999;
+	private int prevRenderX, prevRenderY, prevRenderZ;
 	private IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList;
 	private IdentityLinkedHashList<WorldRenderer> workerWorldRenderers;
 
@@ -74,6 +75,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	@Override
 	public boolean updateRenderers(EntityLivingBase view, boolean p_72716_2_) {
 
+		theWorld.theProfiler.startSection("scan");
 		int yaw = MathHelper.floor_float(view.rotationYaw + 45) >> 2;
 		int pitch = MathHelper.floor_float(view.rotationPitch + 45) >> 2;
 		if (worker.dirty || yaw != prevRotationYaw || pitch != prevRotationPitch) {
@@ -83,9 +85,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		}
 		int lim = worldRenderersToUpdate.size() + workerWorldRenderers.size();
 		if (lim == 0) {
+			theWorld.theProfiler.endSection();
 			return true;
 		}
-		theWorld.theProfiler.startSection("rebuild");
+		theWorld.theProfiler.endStartSection("rebuild");
 		long start = System.nanoTime();
 
 		for (int c = 0, i = 0; c < lim; ++c) {
@@ -106,6 +109,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					continue;
 				}
 
+				worldrenderer.glOcclusionQuery = 0;
 				worldrenderer.updateRenderer(view);
 				worldrenderer.needsUpdate = false;
 				worldrenderer.isWaitingOnOcclusionQuery = worldrenderer.skipAllRenderPasses();
@@ -272,6 +276,15 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		theWorld.theProfiler.startSection("sortchunks");
 
+        for (int j = 0; j < 10; ++j) {
+            worldRenderersCheckIndex = (worldRenderersCheckIndex + 1) % worldRenderers.length;
+            WorldRenderer rend = worldRenderers[worldRenderersCheckIndex];
+
+            if (rend.isInFrustum & rend.isVisible & rend.glOcclusionQuery < 0) {
+                worldRenderersToUpdate.add(rend);
+            }
+        }
+
 		if (prevChunkSortX != view.chunkCoordX || prevChunkSortY != view.chunkCoordY || prevChunkSortZ != view.chunkCoordZ) {
 			prevChunkSortX = view.chunkCoordX;
 			prevChunkSortY = view.chunkCoordY;
@@ -280,10 +293,21 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			// no sorting done here, it's now implicit as part of occlusion
 		}
 
-		if (prevRenderSortX != view.posX || prevRenderSortY != view.posY || prevRenderSortZ != view.posZ) {
+		l: if (prevRenderSortX != view.posX || prevRenderSortY != view.posY || prevRenderSortZ != view.posZ) {
 			prevRenderSortX = view.posX;
 			prevRenderSortY = view.posY;
 			prevRenderSortZ = view.posZ;
+			{
+				int x = (int)((prevRenderSortX - view.chunkCoordX * 16) * 2);
+				int y = (int)((prevRenderSortY - view.chunkCoordY * 16) * 2);
+				int z = (int)((prevRenderSortZ - view.chunkCoordZ * 16) * 2);
+				if (prevRenderX == x && prevRenderY == y && prevRenderZ == z) {
+					break l;
+				}
+				prevRenderX = x;
+				prevRenderY = y;
+				prevRenderZ = z;
+			}
 			final int limit;
 			{
 				double x = view.posX - prevSortX;
