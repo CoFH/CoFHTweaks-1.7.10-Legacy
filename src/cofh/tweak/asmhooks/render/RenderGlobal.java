@@ -61,7 +61,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		int o = frustumCheckOffset++;
 		for (int i = 0, e = worldRenderers.length; i < e; ++i) {
 			WorldRenderer rend = worldRenderers[i];
-			boolean skip = rend.isWaitingOnOcclusionQuery;
+			boolean skip = rend.isWaitingOnOcclusionQuery && rend.isInitialized;
 			if (skip)
 				continue;
 			boolean frustrum = rend.isInFrustum;
@@ -276,14 +276,14 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		theWorld.theProfiler.startSection("sortchunks");
 
-        for (int j = 0; j < 10; ++j) {
-            worldRenderersCheckIndex = (worldRenderersCheckIndex + 1) % worldRenderers.length;
-            WorldRenderer rend = worldRenderers[worldRenderersCheckIndex];
+		for (int j = 0; j < 10; ++j) {
+			worldRenderersCheckIndex = (worldRenderersCheckIndex + 1) % worldRenderers.length;
+			WorldRenderer rend = worldRenderers[worldRenderersCheckIndex];
 
-            if (rend.isInFrustum & rend.isVisible & rend.glOcclusionQuery < 0) {
-                worldRenderersToUpdate.add(rend);
-            }
-        }
+			if (rend.isInFrustum & rend.isVisible & rend.glOcclusionQuery < 0) {
+				worldRenderersToUpdate.add(rend);
+			}
+		}
 
 		if (prevChunkSortX != view.chunkCoordX || prevChunkSortY != view.chunkCoordY || prevChunkSortZ != view.chunkCoordZ) {
 			prevChunkSortX = view.chunkCoordX;
@@ -298,9 +298,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			prevRenderSortY = view.posY;
 			prevRenderSortZ = view.posZ;
 			{
-				int x = (int)((prevRenderSortX - view.chunkCoordX * 16) * 2);
-				int y = (int)((prevRenderSortY - view.chunkCoordY * 16) * 2);
-				int z = (int)((prevRenderSortZ - view.chunkCoordZ * 16) * 2);
+				int x = (int) ((prevRenderSortX - view.chunkCoordX * 16) * 2);
+				int y = (int) ((prevRenderSortY - view.chunkCoordY * 16) * 2);
+				int z = (int) ((prevRenderSortZ - view.chunkCoordZ * 16) * 2);
 				if (prevRenderX == x && prevRenderY == y && prevRenderZ == z) {
 					break l;
 				}
@@ -424,7 +424,13 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			}
 		}
 
-		renderAllRenderLists(pass, tick);
+		mc.entityRenderer.enableLightmap(tick);
+
+		for (int j = 0; j < allRenderListsLength; ++j) {
+			allRenderLists[j].callLists();
+		}
+
+		mc.entityRenderer.disableLightmap(tick);
 		return glListsRendered;
 	}
 
@@ -612,7 +618,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						int index = (z * renderChunksTall + y) * renderChunksWide + x;
 
 						WorldRenderer rend = new WorldRenderer(theWorld, tileEntities, x * 16, y * 16, z * 16, glRenderListBase + glRenderListCount);
-						glRenderListCount += 2; // was: 3
+						glRenderListCount += 3;
 
 						worldRenderers[index] = rend;
 						sortedWorldRenderers[index] = rend;
