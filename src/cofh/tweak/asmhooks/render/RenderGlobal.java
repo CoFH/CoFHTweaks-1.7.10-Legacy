@@ -17,6 +17,7 @@ import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.renderer.RenderHelper;
+import net.minecraft.client.renderer.RenderList;
 import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.renderer.culling.ICamera;
 import net.minecraft.client.renderer.entity.RenderManager;
@@ -34,7 +35,6 @@ import org.lwjgl.opengl.GL11;
 
 public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
-	private int sortedWorldRendererEnd = 0;
 	private int renderersNeedUpdate;
 	private int prevRotationPitch = -9999;
 	private int prevRotationYaw = -9999;
@@ -55,7 +55,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		int o = frustumCheckOffset++;
 		for (int i = 0, e = worldRenderers.length; i < e; ++i) {
 			WorldRenderer rend = worldRenderers[i];
-			boolean skip = rend.skipAllRenderPasses();
+			boolean skip = rend.isWaitingOnOcclusionQuery;
 			if (skip)
 				continue;
 			boolean frustrum = rend.isInFrustum;
@@ -271,16 +271,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			loadRenderers();
 		}
 
-		if (pass == 0) {
-			renderersLoaded = 0;
-			dummyRenderInt = 0;
-			renderersBeingClipped = 0;
-			renderersBeingOccluded = 0;
-			renderersBeingRendered = 0;
-			renderersSkippingRenderPass = 0;
-			renderersNeedUpdate = 0;
-		}
-
 		if (prevChunkSortX != view.chunkCoordX || prevChunkSortY != view.chunkCoordY || prevChunkSortZ != view.chunkCoordZ) {
 			prevChunkSortX = view.chunkCoordX;
 			prevChunkSortY = view.chunkCoordY;
@@ -307,11 +297,12 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					limit = 2;
 				}
 			}
+			int x = MathHelper.floor_double(prevRenderSortX), y = MathHelper.floor_double(prevRenderSortY), z = MathHelper.floor_double(prevRenderSortZ);
 			for (int i = -limit; i <= limit; ++i) {
 				for (int j = -limit; j <= limit; ++j) {
 					for (int k = -limit; k <= limit; ++k) {
-						WorldRenderer r = getRenderer(prevRenderSortX + i * 16, prevRenderSortY + j * 16, prevRenderSortZ + k * 16);
-						if (r == null || r.skipAllRenderPasses()) {
+						WorldRenderer r = getRenderer(x + i * 16, y + j * 16, z + k * 16);
+						if (r == null || r.isWaitingOnOcclusionQuery) {
 							continue;
 						}
 						r.updateRendererSort(view);
@@ -322,7 +313,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		theWorld.theProfiler.endStartSection("render");
 		RenderHelper.disableStandardItemLighting();
-		int k = renderSortedRenderers(0, sortedWorldRendererEnd, pass, tick);
+		int k = renderSortedRenderers(0, renderersLoaded, pass, tick);
 
 		theWorld.theProfiler.endSection();
 		return k;
@@ -337,6 +328,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		double yOff = entitylivingbase.lastTickPosY + (entitylivingbase.posY - entitylivingbase.lastTickPosY) * tick;
 		double zOff = entitylivingbase.lastTickPosZ + (entitylivingbase.posZ - entitylivingbase.lastTickPosZ) * tick;
 
+		RenderList[] allRenderLists = this.allRenderLists;
 		for (int i = 0; i < allRenderLists.length; ++i) {
 			allRenderLists[i].resetList();
 		}
@@ -351,15 +343,14 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			dir = -1;
 		}
 
-		int glListsRendered = 0;
-		int allRenderListsLength = 0;
-		for (int i = loopStart; i != loopEnd; i += dir) {
-			WorldRenderer rend = sortedWorldRenderers[i];
-			if (pass == 0) {
-				++renderersLoaded;
+		if (pass == 0 && mc.gameSettings.showDebugInfo) {
 
+			int renderersNotInitialized = 0, renderersBeingClipped = 0, renderersBeingOccluded = 0;
+			int renderersBeingRendered = 0, renderersSkippingRenderPass = 0, renderersNeedUpdate = 0;
+			for (int i = loopStart; i != loopEnd; i += dir) {
+				WorldRenderer rend = sortedWorldRenderers[i];
 				if (!rend.isInitialized) {
-					++dummyRenderInt;
+					++renderersNotInitialized;
 				} else if (!rend.isInFrustum) {
 					++renderersBeingClipped;
 				} else if (!rend.isVisible) {
@@ -373,6 +364,18 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					++renderersNeedUpdate;
 				}
 			}
+
+			this.dummyRenderInt = renderersNotInitialized;
+			this.renderersBeingClipped = renderersBeingClipped;
+			this.renderersBeingOccluded = renderersBeingOccluded;
+			this.renderersBeingRendered = renderersBeingRendered;
+			this.renderersSkippingRenderPass = renderersSkippingRenderPass;
+			this.renderersNeedUpdate = renderersNeedUpdate;
+		}
+
+		int glListsRendered = 0, allRenderListsLength = 0;
+		for (int i = loopStart; i != loopEnd; i += dir) {
+			WorldRenderer rend = sortedWorldRenderers[i];
 
 			if (rend.isVisible & !rend.skipRenderPass[pass]) {
 				int glList = rend.getGLCallListForPass(pass);
@@ -619,7 +622,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		public void run(boolean immediate) {
 
 			l: try {
-				EntityLivingBase view = Minecraft.getMinecraft().renderViewEntity;
+				if (render == null || render.mc == null) {
+					break l;
+				}
+				EntityLivingBase view = render.mc.renderViewEntity;
 				if (theWorld == null || view == null) {
 					break l;
 				} else {
@@ -628,7 +634,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						return;
 					}
 				}
-				render.sortedWorldRendererEnd = 0;
+				render.renderersLoaded = 0;
 				for (WorldRenderer rend : render.worldRenderers) {
 					rend.isVisible = false;
 				}
@@ -768,7 +774,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 										//if (!fStack.isBoundingBoxInFrustum(t.rendererBoundingBox))
 										//continue;
 
-										if (t.skipAllRenderPasses()) {
+										if (t.isWaitingOnOcclusionQuery) {
 											cost -= 3;
 											cost &= ~cost >> 31;
 										}
@@ -801,7 +807,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				rend.isVisible = true;
 				if (!rend.isWaitingOnOcclusionQuery) {
 					// only add it to the list of sorted renderers if it's not skipping all passes (re-used field)
-					render.sortedWorldRenderers[render.sortedWorldRendererEnd++] = rend;
+					render.sortedWorldRenderers[render.renderersLoaded++] = rend;
 				}
 			}
 			if (!rend.isInitialized || rend.glOcclusionQuery < 0 || vis.isRenderDirty()) {
