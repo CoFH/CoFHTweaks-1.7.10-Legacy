@@ -902,7 +902,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 										//if (!fStack.isBoundingBoxInFrustum(t.rendererBoundingBox))
 										//continue;
 
-										if (t.isWaitingOnOcclusionQuery) {
+										if (t.isWaitingOnOcclusionQuery || sides.getVisibility().isAllVisible(true)) {
 											cost -= 3;
 											cost &= ~cost >> 31;
 										}

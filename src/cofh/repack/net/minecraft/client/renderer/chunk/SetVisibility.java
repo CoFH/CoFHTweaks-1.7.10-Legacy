@@ -16,35 +16,41 @@ public class SetVisibility {
 		this.bitSet = new BitSet(COUNT_FACES * COUNT_FACES);
 	}
 
-	public void setManyVisible(Set<EnumFacing> p_178620_1_) {
+	public void setManyVisible(Set<EnumFacing> faces) {
 
-		Iterator<EnumFacing> iterator = p_178620_1_.iterator();
+		Iterator<EnumFacing> iterator = faces.iterator();
 
 		while (iterator.hasNext()) {
 			EnumFacing enumfacing = iterator.next();
-			Iterator<EnumFacing> iterator1 = p_178620_1_.iterator();
+			Iterator<EnumFacing> iterator1 = faces.iterator();
 
 			while (iterator1.hasNext()) {
 				EnumFacing enumfacing1 = iterator1.next();
-				this.setVisible(enumfacing, enumfacing1, true);
+				setVisible(enumfacing, enumfacing1, true);
 			}
 		}
 	}
 
-	public void setVisible(EnumFacing p_178619_1_, EnumFacing p_178619_2_, boolean p_178619_3_) {
+	public void setVisible(EnumFacing from, EnumFacing to, boolean visible) {
 
-		this.bitSet.set(p_178619_1_.ordinal() + p_178619_2_.ordinal() * COUNT_FACES, p_178619_3_);
-		this.bitSet.set(p_178619_2_.ordinal() + p_178619_1_.ordinal() * COUNT_FACES, p_178619_3_);
+		bitSet.set(from.ordinal() + to.ordinal() * COUNT_FACES, visible);
+		bitSet.set(to.ordinal() + from.ordinal() * COUNT_FACES, visible);
 	}
 
-	public void setAllVisible(boolean p_178618_1_) {
+	public void setAllVisible(boolean visible) {
 
-		this.bitSet.set(0, this.bitSet.size(), p_178618_1_);
+		bitSet.set(0, bitSet.size(), visible);
 	}
 
-	public boolean isVisible(EnumFacing p_178621_1_, EnumFacing p_178621_2_) {
+	public boolean isAllVisible(boolean visible) {
 
-		return this.bitSet.get(p_178621_1_.ordinal() + p_178621_2_.ordinal() * COUNT_FACES);
+		int i = visible ? bitSet.nextClearBit(0) : bitSet.nextSetBit(0);
+		return i < 0 || i >= (COUNT_FACES * COUNT_FACES);
+	}
+
+	public boolean isVisible(EnumFacing from, EnumFacing to) {
+
+		return bitSet.get(from.ordinal() + to.ordinal() * COUNT_FACES);
 	}
 
 	@Override
