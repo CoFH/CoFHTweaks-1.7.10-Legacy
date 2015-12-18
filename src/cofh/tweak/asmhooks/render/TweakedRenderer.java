@@ -76,7 +76,7 @@ public class TweakedRenderer extends net.minecraft.client.renderer.WorldRenderer
 
 			HashSet<TileEntity> existingTiles = null;
 			if (tileEntityRenderers.size() > 0) {
-				existingTiles = new HashSet<>();
+				existingTiles = new HashSet<TileEntity>();
 				existingTiles.addAll(tileEntityRenderers);
 				tileEntityRenderers.clear();
 			}
@@ -163,7 +163,7 @@ public class TweakedRenderer extends net.minecraft.client.renderer.WorldRenderer
 				if (existingTiles == null) {
 					tileEntities.addAll(tileEntityRenderers);
 				} else {
-					HashSet<TileEntity> hashset1 = new HashSet<>();
+					HashSet<TileEntity> hashset1 = new HashSet<TileEntity>();
 					hashset1.addAll(tileEntityRenderers);
 					hashset1.removeAll(existingTiles);
 					tileEntities.addAll(hashset1);
