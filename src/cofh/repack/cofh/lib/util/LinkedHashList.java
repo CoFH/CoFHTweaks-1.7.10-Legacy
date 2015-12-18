@@ -106,7 +106,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 	}
 
 	@Override
-	public E set(int index, E obj) {
+	public synchronized E set(int index, E obj) {
 
 		checkElementIndex(index);
 
@@ -196,13 +196,13 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		return indexOf(o);
 	}
 
-	public boolean push(E obj) {
+	public synchronized boolean push(E obj) {
 
 		int hash = hash(obj);
 		return add(obj, hash);
 	}
 
-	public E pop() {
+	public synchronized E pop() {
 
 		Entry e = tail;
 		if (e != null) {
@@ -244,7 +244,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		return true;
 	}
 
-	public E shift() {
+	public synchronized E shift() {
 
 		Entry e = head;
 		if (e != null) {
@@ -255,13 +255,13 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 	}
 
 	@Override
-	public boolean contains(Object obj) {
+	public synchronized boolean contains(Object obj) {
 
 		return seek(obj, hash(obj)) != null;
 	}
 
 	@Override
-	public boolean remove(Object obj) {
+	public synchronized boolean remove(Object obj) {
 
 		Entry e = seek(obj, hash(obj));
 		if (e == null) {
@@ -273,7 +273,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 	}
 
 	@Override
-	public E remove(int index) {
+	public synchronized E remove(int index) {
 
 		checkElementIndex(index);
 
