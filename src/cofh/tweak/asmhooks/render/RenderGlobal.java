@@ -937,7 +937,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					rend.needsUpdate = true;
 				}
 				if (!rend.isInitialized || (rend.needsUpdate && rend.distanceToEntitySquared(view) <= 1128.0F)) {
-					rend.glOcclusionQuery = 0;
 					render.workerWorldRenderers.push(rend);
 				}
 			}
