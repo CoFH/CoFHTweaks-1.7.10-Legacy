@@ -123,6 +123,7 @@ public class HooksCore {
 				int e = MathHelper.floor_double((bb2.maxY + World.MAX_ENTITY_RADIUS) * 0.0625);
 				s = MathHelper.clamp_int(s, 0, chunk.entityLists.length - 1);
 				e = MathHelper.clamp_int(e, -1, chunk.entityLists.length - 1);
+				CoFHTweaks_FZ_Hook(chunk, entity, bb, collidingBoundingBoxes);
 
 				for (; s <= e; ++s) {
 					@SuppressWarnings("unchecked")
@@ -166,6 +167,11 @@ public class HooksCore {
 			}
 
 		return collidingBoundingBoxes;
+	}
+
+	private static void CoFHTweaks_FZ_Hook(Chunk chunk, Entity entity, AxisAlignedBB bb, List<AxisAlignedBB> found) {
+
+		return;
 	}
 
 	@SideOnly(Side.CLIENT)
