@@ -41,6 +41,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	private int prevRotationPitch = -9999;
 	private int prevRotationYaw = -9999;
 	private int prevRenderX, prevRenderY, prevRenderZ;
+	private long lastTickUpdate = -1;
 	private IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList;
 	private IdentityLinkedHashList<WorldRenderer> workerWorldRenderers;
 
@@ -278,6 +279,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		theWorld.theProfiler.startSection("sortchunks");
 
+		List<WorldRenderer> worldRenderersToUpdate = this.worldRenderersToUpdate;
 		for (int j = 0; j < 10; ++j) {
 			worldRenderersCheckIndex = (worldRenderersCheckIndex + 1) % worldRenderers.length;
 			WorldRenderer rend = worldRenderers[worldRenderersCheckIndex];
@@ -297,6 +299,11 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		}
 
 		l: if (prevRenderSortX != view.posX || prevRenderSortY != view.posY || prevRenderSortZ != view.posZ) {
+			long t = Minecraft.getMinecraft().theWorld.getTotalWorldTime();
+			if (t == lastTickUpdate) {
+				break l;
+			}
+			lastTickUpdate = t;
 			prevRenderSortX = view.posX;
 			prevRenderSortY = view.posY;
 			prevRenderSortZ = view.posZ;
