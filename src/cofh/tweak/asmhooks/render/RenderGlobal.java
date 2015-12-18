@@ -328,8 +328,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					//limit = 2;
 				//}
 			}
-			if (alphaSortProgress < renderersLoaded) {
-				for (int i = 0; i < 10 && alphaSortProgress < renderersLoaded; ++i) {
+			int amt = renderersLoaded < 27 ? renderersLoaded : Math.max(renderersLoaded >> 1, 27);
+			if (alphaSortProgress < amt) {
+				for (int i = 0; i < 10 && alphaSortProgress < amt; ++i) {
 					WorldRenderer r = sortedWorldRenderers[alphaSortProgress++];
 					r.updateRendererSort(view);
 				}
