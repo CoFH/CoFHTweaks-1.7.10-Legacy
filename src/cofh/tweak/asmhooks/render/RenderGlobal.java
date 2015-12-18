@@ -60,17 +60,15 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		}
 
 		int o = frustumCheckOffset++;
+		WorldRenderer[] worldRenderers = this.worldRenderers;
 		for (int i = 0, e = worldRenderers.length; i < e; ++i) {
 			WorldRenderer rend = worldRenderers[i];
-			boolean skip = rend.isWaitingOnOcclusionQuery && rend.isInitialized;
-			if (skip)
+			if (rend.isWaitingOnOcclusionQuery & rend.isInitialized)
 				continue;
-			boolean frustrum = rend.isInFrustum;
-			if (!frustrum || ((i + o) & 15) == 0) {
+			if (!rend.isInFrustum | ((i + o) & 15) == 0) {
 				rend.updateInFrustum(camera);
 			}
 		}
-
 	}
 
 	@Override
@@ -92,6 +90,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		theWorld.theProfiler.endStartSection("rebuild");
 		long start = System.nanoTime();
 
+		IdentityLinkedHashList<WorldRenderer> workerWorldRenderers = this.workerWorldRenderers;
+		IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList = this.worldRenderersToUpdateList;
 		for (int c = 0, i = 0; c < lim; ++c) {
 			++i;
 			WorldRenderer worldrenderer;
@@ -102,26 +102,26 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				worldrenderer = worldRenderersToUpdateList.shift();
 			}
 
-			if (worldrenderer != null) {
+			if (worldrenderer == null) {
+				break;
+			}
 
-				if (!worldrenderer.isInFrustum || !worldrenderer.isVisible) {
-					worldrenderer.needsUpdate = false;
-					worldrenderer.glOcclusionQuery = -1;
-					continue;
-				}
-
-				worldrenderer.glOcclusionQuery = 0;
-				worldrenderer.updateRenderer(view);
+			if (!(worldrenderer.isInFrustum & worldrenderer.isVisible)) {
 				worldrenderer.needsUpdate = false;
-				worldrenderer.isWaitingOnOcclusionQuery = worldrenderer.skipAllRenderPasses();
-				// can't add fields, re-use
+				worldrenderer.glOcclusionQuery = -1;
+				continue;
+			}
 
-				if (i > 5) {
-					i = 0;
-					long t = (System.nanoTime() - start) >>> 1;
-					if (t > 5000000L >>> 1)
-						break;
-				}
+			worldrenderer.updateRenderer(view);
+			worldrenderer.glOcclusionQuery = 0;
+			worldrenderer.isWaitingOnOcclusionQuery = worldrenderer.skipAllRenderPasses();
+			// can't add fields, re-use
+
+			if (i > 5) {
+				i = 0;
+				long t = (System.nanoTime() - start) >>> 1;
+				if (t > 5000000L >>> 1)
+					break;
 			}
 		}
 
@@ -236,8 +236,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		theWorld.theProfiler.endStartSection("blockentities");
 		RenderHelper.enableStandardItemLighting();
 
+		List<TileEntity> tileEntities = this.tileEntities;
 		for (int i = 0; i < tileEntities.size(); ++i) {
-			TileEntity tile = (TileEntity) tileEntities.get(i);
+			TileEntity tile = tileEntities.get(i);
 			if (tile.shouldRenderInPass(pass) && camera.isBoundingBoxInFrustum(tile.getRenderBoundingBox())) {
 				TileEntityRendererDispatcher.instance.renderTileEntity(tile, tick);
 			}
@@ -618,8 +619,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					for (int z = 0; z < renderChunksDeep; ++z) {
 						int index = (z * renderChunksTall + y) * renderChunksWide + x;
 
-						WorldRenderer rend = new WorldRenderer(theWorld, tileEntities, x * 16, y * 16, z * 16, glRenderListBase + glRenderListCount);
-						glRenderListCount += 3;
+						WorldRenderer rend = new TweakedRenderer(theWorld, tileEntities, x * 16, y * 16, z * 16, glRenderListBase + glRenderListCount);
+						glRenderListCount += 2; // was: 3
 
 						worldRenderers[index] = rend;
 						sortedWorldRenderers[index] = rend;
