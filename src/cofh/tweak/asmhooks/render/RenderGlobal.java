@@ -41,8 +41,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	private int prevRotationPitch = -9999;
 	private int prevRotationYaw = -9999;
 	private int prevRenderX, prevRenderY, prevRenderZ;
-	private short alphaSortProgress = 0, alphaSortEnd = 4 * 4 * 4;
-	private byte alphaSortCounter;
+	private short alphaSortProgress = 0;
 	private IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList;
 	private IdentityLinkedHashList<WorldRenderer> workerWorldRenderers;
 
@@ -318,7 +317,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					prevRenderZ = z;
 				}
 				alphaSortProgress = 0;
-				++alphaSortCounter;
 				//double x = view.posX - prevSortX;
 				//double y = view.posY - prevSortY;
 				//double z = view.posZ - prevSortZ;
@@ -331,10 +329,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				//}
 			}
 			if (alphaSortProgress < renderersLoaded) {
-				for (int i = 0, c = 0; i < 10 && alphaSortProgress < renderersLoaded; ++i) {
+				for (int i = 0; i < 10 && alphaSortProgress < renderersLoaded; ++i) {
 					WorldRenderer r = sortedWorldRenderers[alphaSortProgress++];
 					r.updateRendererSort(view);
-					r.glOcclusionQuery = alphaSortCounter;
 				}
 			}
 			theWorld.theProfiler.endSection();
