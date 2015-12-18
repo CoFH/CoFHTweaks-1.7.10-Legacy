@@ -64,7 +64,7 @@ public class Config {
 		(tag = config.getTag("Server.AggressiveAIReduction")).setComment(comment);
 		agressiveAICulling = tag.getBooleanValue(agressiveAICulling);
 
-		comment = "If true, textures will animate. The setting in CoFHCore overrides this.";
+		comment = "If true, textures will animate. This overrides the setting in CoFHCore.";
 		(tag = config.getTag("Client.AnimatedTextures")).setComment(comment);
 		animateTextures = tag.getBooleanValue(animateTextures);
 		comment = "If true, entities will be aggressively culled from rendering when tightly packed";

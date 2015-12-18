@@ -492,6 +492,7 @@ class ASMCore {
 		cr.accept(cn, 0);
 
 		String mOwner = "net/minecraft/client/renderer/texture/TextureManager";
+		final String sig = "(Lnet/minecraft/client/renderer/texture/ITickable;)V";
 
 		l: {
 			boolean updated = false;
@@ -504,8 +505,13 @@ class ASMCore {
 						if (n.getOpcode() == INVOKEVIRTUAL) {
 							MethodInsnNode mn = (MethodInsnNode) n;
 							if (mOwner.equals(mn.owner) && names[1].equals(mn.name) && "()V".equals(mn.desc)) {
-								m.instructions.set(mn, new MethodInsnNode(INVOKESTATIC, HooksCore, "tickTextures",
-										"(Lnet/minecraft/client/renderer/texture/ITickable;)V", false));
+								m.instructions.set(mn, new MethodInsnNode(INVOKESTATIC, HooksCore, "tickTextures", sig, false));
+								break mc;
+							}
+						} else if(n.getOpcode() == INVOKESTATIC) {
+							MethodInsnNode mn = (MethodInsnNode) n;
+							if ("cofh/asmhooks/HooksCore".equals(mn.owner) && "tickTextures".equals(mn.name) && sig.equals(mn.desc)) {
+								m.instructions.set(mn, new MethodInsnNode(INVOKESTATIC, HooksCore, "tickTextures", sig, false));
 								break mc;
 							}
 						}
