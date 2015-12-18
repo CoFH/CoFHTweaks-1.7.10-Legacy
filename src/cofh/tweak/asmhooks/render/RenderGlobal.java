@@ -287,6 +287,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			}
 		}
 
+		theWorld.theProfiler.startSection("reposition_chunks");
 		if (prevChunkSortX != view.chunkCoordX || prevChunkSortY != view.chunkCoordY || prevChunkSortZ != view.chunkCoordZ) {
 			prevChunkSortX = view.chunkCoordX;
 			prevChunkSortY = view.chunkCoordY;
@@ -311,16 +312,20 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				prevRenderZ = z;
 			}
 			final int limit;
+			boolean heavy = false;
 			{
 				double x = view.posX - prevSortX;
-				double y = view.posY - prevSortX;
-				double z = view.posZ - prevSortX;
-				if ((x * x + y * y + z * z) > 8) {
+				double y = view.posY - prevSortY;
+				double z = view.posZ - prevSortZ;
+				if ((x * x + y * y + z * z) > 16) {
+					theWorld.theProfiler.endStartSection("heavy");
+					heavy = true;
 					prevSortX = view.posX;
 					prevSortY = view.posY;
 					prevSortZ = view.posZ;
 					limit = Math.min(renderDistanceChunks, Math.max(3, renderDistanceChunks >> 1));
 				} else {
+					theWorld.theProfiler.endStartSection("light");
 					limit = 2;
 				}
 			}
@@ -329,7 +334,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				for (int j = -limit; j <= limit; ++j) {
 					for (int k = -limit; k <= limit; ++k) {
 						WorldRenderer r = getRenderer(x + i * 16, y + j * 16, z + k * 16);
-						if (r == null || r.isWaitingOnOcclusionQuery) {
+						if (r == null || r.isWaitingOnOcclusionQuery || (heavy && !(r.isVisible & r.isInFrustum))) {
 							continue;
 						}
 						r.updateRendererSort(view);
@@ -337,6 +342,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				}
 			}
 		}
+		theWorld.theProfiler.endSection();
 
 		theWorld.theProfiler.endStartSection("render");
 		RenderHelper.disableStandardItemLighting();
@@ -764,7 +770,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						boolean allNull = false;
 						for (int size = 1; !allNull; ++size) {
 							allNull = true;
-							for (int i = 0, j = size; i <= size; ) {
+							for (int i = 0, j = size; i < size; ) {
 								for (int k = 0; k < 4; ++k) {
 									int xm = (k & 1) == 0 ? -1 : 1;
 									int zm = (k & 2) == 0 ? -1 : 1;
@@ -783,6 +789,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 								--j;
 							}
 						}
+						System.nanoTime();
 					} else {
 						Chunk chunk = theWorld.getChunkFromBlockCoords(center.posX, center.posZ);
 						if (chunk instanceof ClientChunk) {
