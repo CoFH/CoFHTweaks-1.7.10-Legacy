@@ -41,7 +41,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	private int prevRotationPitch = -9999;
 	private int prevRotationYaw = -9999;
 	private int prevRenderX, prevRenderY, prevRenderZ;
-	private long lastTickUpdate = -1;
+	private short alphaSortProgress = 0, alphaSortEnd = 4 * 4 * 4;
+	private byte alphaSortCounter;
 	private IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList;
 	private IdentityLinkedHashList<WorldRenderer> workerWorldRenderers;
 
@@ -108,13 +109,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			}
 
 			if (!(worldrenderer.isInFrustum & worldrenderer.isVisible)) {
-				worldrenderer.needsUpdate = false;
-				worldrenderer.glOcclusionQuery = -1;
 				continue;
 			}
 
 			worldrenderer.updateRenderer(view);
-			worldrenderer.glOcclusionQuery = 0;
 			worldrenderer.isWaitingOnOcclusionQuery = worldrenderer.skipAllRenderPasses();
 			// can't add fields, re-use
 
@@ -284,7 +282,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			worldRenderersCheckIndex = (worldRenderersCheckIndex + 1) % worldRenderers.length;
 			WorldRenderer rend = worldRenderers[worldRenderersCheckIndex];
 
-			if (rend.isInFrustum & rend.isVisible & rend.glOcclusionQuery < 0) {
+			if (rend.isInFrustum & rend.isVisible & rend.needsUpdate) {
 				worldRenderersToUpdate.add(rend);
 			}
 		}
@@ -297,59 +295,50 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			markRenderersForNewPosition(MathHelper.floor_double(view.posX), MathHelper.floor_double(view.posY), MathHelper.floor_double(view.posZ));
 			// no sorting done here, it's now implicit as part of occlusion
 		}
-
-		l: if (prevRenderSortX != view.posX || prevRenderSortY != view.posY || prevRenderSortZ != view.posZ) {
-			long t = Minecraft.getMinecraft().theWorld.getTotalWorldTime();
-			if (t == lastTickUpdate) {
-				break l;
-			}
-			lastTickUpdate = t;
-			prevRenderSortX = view.posX;
-			prevRenderSortY = view.posY;
-			prevRenderSortZ = view.posZ;
-			{
-				int x = (int) ((prevRenderSortX - view.chunkCoordX * 16) * 2);
-				int y = (int) ((prevRenderSortY - view.chunkCoordY * 16) * 2);
-				int z = (int) ((prevRenderSortZ - view.chunkCoordZ * 16) * 2);
-				if (prevRenderX == x && prevRenderY == y && prevRenderZ == z) {
-					break l;
-				}
-				prevRenderX = x;
-				prevRenderY = y;
-				prevRenderZ = z;
-			}
-			final int limit;
-			boolean heavy = false;
-			{
-				double x = view.posX - prevSortX;
-				double y = view.posY - prevSortY;
-				double z = view.posZ - prevSortZ;
-				if ((x * x + y * y + z * z) > 16) {
-					theWorld.theProfiler.endStartSection("heavy");
-					heavy = true;
-					prevSortX = view.posX;
-					prevSortY = view.posY;
-					prevSortZ = view.posZ;
-					limit = Math.min(renderDistanceChunks, Math.max(3, renderDistanceChunks >> 1));
-				} else {
-					theWorld.theProfiler.endStartSection("light");
-					limit = 2;
-				}
-			}
-			int x = MathHelper.floor_double(prevRenderSortX), y = MathHelper.floor_double(prevRenderSortY + view.getEyeHeight()), z = MathHelper.floor_double(prevRenderSortZ);
-			for (int i = -limit; i <= limit; ++i) {
-				for (int j = -limit; j <= limit; ++j) {
-					for (int k = -limit; k <= limit; ++k) {
-						WorldRenderer r = getRenderer(x + i * 16, y + j * 16, z + k * 16);
-						if (r == null || r.isWaitingOnOcclusionQuery || (heavy && !(r.isVisible & r.isInFrustum))) {
-							continue;
-						}
-						r.updateRendererSort(view);
-					}
-				}
-			}
-		}
 		theWorld.theProfiler.endSection();
+
+		s: {
+			if (pass != 1) {
+				break s;
+			}
+			theWorld.theProfiler.startSection("alpha_sort");
+			l: if (prevRenderSortX != view.posX || prevRenderSortY != view.posY || prevRenderSortZ != view.posZ) {
+				prevRenderSortX = view.posX;
+				prevRenderSortY = view.posY;
+				prevRenderSortZ = view.posZ;
+				{
+					int x = (int) ((prevRenderSortX - view.chunkCoordX * 16) * 2);
+					int y = (int) ((prevRenderSortY - view.chunkCoordY * 16) * 2);
+					int z = (int) ((prevRenderSortZ - view.chunkCoordZ * 16) * 2);
+					if (prevRenderX == x && prevRenderY == y && prevRenderZ == z) {
+						break l;
+					}
+					prevRenderX = x;
+					prevRenderY = y;
+					prevRenderZ = z;
+				}
+				alphaSortProgress = 0;
+				++alphaSortCounter;
+				//double x = view.posX - prevSortX;
+				//double y = view.posY - prevSortY;
+				//double z = view.posZ - prevSortZ;
+				//if ((x * x + y * y + z * z) > 16) {
+					//prevSortX = view.posX;
+					//prevSortY = view.posY;
+					//prevSortZ = view.posZ;
+				//} else {
+					//limit = 2;
+				//}
+			}
+			if (alphaSortProgress < renderersLoaded) {
+				for (int i = 0, c = 0; i < 10 && alphaSortProgress < renderersLoaded; ++i) {
+					WorldRenderer r = sortedWorldRenderers[alphaSortProgress++];
+					r.updateRendererSort(view);
+					r.glOcclusionQuery = alphaSortCounter;
+				}
+			}
+			theWorld.theProfiler.endSection();
+		}
 
 		theWorld.theProfiler.endStartSection("render");
 		RenderHelper.disableStandardItemLighting();
@@ -401,7 +390,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				} else {
 					++renderersBeingRendered;
 				}
-				if (rend.glOcclusionQuery < 0) {
+				if (rend.needsUpdate) {
 					++renderersNeedUpdate;
 				}
 			}
@@ -567,7 +556,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							Chunk chunk = theWorld.getChunkFromBlockCoords(worldrenderer.posX, worldrenderer.posZ);
 							if (chunk instanceof ClientChunk) {
 								if (((ClientChunk) chunk).visibility[worldrenderer.posY >> 4].isRenderDirty()) {
-									worldrenderer.glOcclusionQuery = -1;
 									rebuild = true;
 								}
 							}
@@ -945,11 +933,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					render.sortedWorldRenderers[render.renderersLoaded++] = rend;
 				}
 			}
-			if (!rend.isInitialized || rend.glOcclusionQuery < 0 || vis.isRenderDirty()) {
-				rend.glOcclusionQuery = -1;
-				if (rend.isInFrustum) {
-					rend.needsUpdate = true;
-				}
+			if (!rend.isInitialized || rend.needsUpdate || vis.isRenderDirty()) {
+				rend.needsUpdate = true;
 				if (!rend.isInitialized || (rend.needsUpdate && rend.distanceToEntitySquared(view) <= 1128.0F)) {
 					render.workerWorldRenderers.push(rend);
 				}
