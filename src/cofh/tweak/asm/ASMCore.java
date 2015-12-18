@@ -253,7 +253,7 @@ class ASMCore {
 				break l;
 			}
 
-			for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+			for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n == null ? null : n.getNext()) {
 				if (n.getOpcode() == NEW) {
 					if ("net/minecraft/world/chunk/Chunk".equals(((TypeInsnNode)n).desc)) {
 						((TypeInsnNode)n).desc = "cofh/tweak/asmhooks/world/ClientChunk";

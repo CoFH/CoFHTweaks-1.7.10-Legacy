@@ -416,8 +416,7 @@ public class ArrayHashList<E extends Object> extends AbstractCollection<E> imple
 		if (size > old.length * 2 && old.length < Ints.MAX_POWER_OF_TWO) {
 			synchronized (hashTable) {
 				int newTableSize = old.length * 2, newMask = newTableSize - 1;
-				newTable = hashTable = new Entry[newTableSize];
-				mask = newMask;
+				newTable = new Entry[newTableSize];
 
 				for (int bucket = old.length; bucket-- > 0;) {
 					Entry entry = old[bucket];
@@ -429,6 +428,8 @@ public class ArrayHashList<E extends Object> extends AbstractCollection<E> imple
 						entry = nextEntry;
 					}
 				}
+				hashTable = newTable;
+				mask = newMask;
 			}
 		}
 	}
