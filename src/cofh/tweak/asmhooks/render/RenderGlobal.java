@@ -548,7 +548,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 					if (!worldrenderer.needsUpdate) {
 						worldrenderer.markDirty();
-						if (worldrenderer.distanceToEntitySquared(mc.renderViewEntity) > 1728.0F) {
+						if (worldrenderer.distanceToEntitySquared(mc.renderViewEntity) > 972.0F) {
 							worldRenderersToUpdate.add(worldrenderer);
 						} else {
 							Chunk chunk = theWorld.getChunkFromBlockCoords(worldrenderer.posX, worldrenderer.posZ);
