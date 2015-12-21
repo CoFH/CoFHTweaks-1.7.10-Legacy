@@ -61,8 +61,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		}
 
 		int o = frustumCheckOffset++;
-		WorldRenderer[] worldRenderers = this.worldRenderers;
-		for (int i = 0, e = worldRenderers.length; i < e; ++i) {
+		WorldRenderer[] worldRenderers = this.sortedWorldRenderers;
+		for (int i = 0, e = this.renderersLoaded; i < e; ++i) {
 			WorldRenderer rend = worldRenderers[i];
 			if (rend.isWaitingOnOcclusionQuery & rend.isInitialized)
 				continue;
@@ -277,12 +277,15 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		theWorld.theProfiler.startSection("sortchunks");
 
 		List<WorldRenderer> worldRenderersToUpdate = this.worldRenderersToUpdate;
-		for (int j = 0; j < 10; ++j) {
-			worldRenderersCheckIndex = (worldRenderersCheckIndex + 1) % worldRenderers.length;
-			WorldRenderer rend = worldRenderers[worldRenderersCheckIndex];
+		WorldRenderer[] sortedWorldRenderers = this.sortedWorldRenderers;
+		if (renderersLoaded > 0) {
+			for (int j = 0; j < 10; ++j) {
+				worldRenderersCheckIndex = (worldRenderersCheckIndex + 1) % renderersLoaded;
+				WorldRenderer rend = sortedWorldRenderers[worldRenderersCheckIndex];
 
-			if (rend.isInFrustum & rend.isVisible & rend.needsUpdate) {
-				worldRenderersToUpdate.add(rend);
+				if ((rend.isInFrustum & rend.isVisible) & rend.needsUpdate) {
+					worldRenderersToUpdate.add(rend);
+				}
 			}
 		}
 

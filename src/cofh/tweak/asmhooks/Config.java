@@ -2,6 +2,7 @@ package cofh.tweak.asmhooks;
 
 import cofh.repack.tweak.codechicken.lib.config.ConfigFile;
 import cofh.repack.tweak.codechicken.lib.config.ConfigTag;
+import cofh.tweak.asm.LoadingPlugin;
 
 import java.io.File;
 import java.io.FileReader;
@@ -76,6 +77,9 @@ public class Config {
 		comment = "If true, the client will not process lighting updates when blocks are changed via packets";
 		(tag = config.getTag("Client.FastSetBlock")).setComment(comment);
 		fastBlocks = tag.getBooleanValue(fastBlocks);
+		comment = "If true, the current FPS will be displayed in the upper left without F3";
+		(tag = config.getTag("Client.ShowFPS")).setComment(comment);
+		showFPS = tag.getBooleanValue(showFPS);
 	}
 
 	public static boolean stackItems = true;
@@ -86,5 +90,6 @@ public class Config {
 	public static boolean agressiveCulling = false;
 	public static boolean distantCulling = false;
 	public static boolean agressiveAICulling = false;
+	public static boolean showFPS = !LoadingPlugin.runtimeDeobfEnabled;
 
 }
