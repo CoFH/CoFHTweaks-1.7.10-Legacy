@@ -1,11 +1,11 @@
 package cofh.tweak.asmhooks.render;
 
 import cofh.repack.cofh.lib.util.IdentityLinkedHashList;
+import cofh.repack.net.minecraft.client.renderer.chunk.SetVisibility;
 import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
 import cofh.tweak.CoFHTweaks;
 import cofh.tweak.asmhooks.world.ClientChunk;
 import cofh.tweak.util.Frustrum;
-import cofh.tweak.util.Vector3;
 import cpw.mods.fml.common.FMLLog;
 
 import java.util.ArrayDeque;
@@ -279,7 +279,10 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		List<WorldRenderer> worldRenderersToUpdate = this.worldRenderersToUpdate;
 		WorldRenderer[] sortedWorldRenderers = this.sortedWorldRenderers;
 		if (renderersLoaded > 0) {
-			for (int j = 0; j < 10; ++j) {
+			int e = renderersLoaded - 10;
+			e &= e >> 31;
+			e += 10;
+			for (int j = 0; j < e; ++j) {
 				worldRenderersCheckIndex = (worldRenderersCheckIndex + 1) % renderersLoaded;
 				WorldRenderer rend = sortedWorldRenderers[worldRenderersCheckIndex];
 
@@ -324,11 +327,11 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				//double y = view.posY - prevSortY;
 				//double z = view.posZ - prevSortZ;
 				//if ((x * x + y * y + z * z) > 16) {
-					//prevSortX = view.posX;
-					//prevSortY = view.posY;
-					//prevSortZ = view.posZ;
+				//prevSortX = view.posX;
+				//prevSortY = view.posY;
+				//prevSortZ = view.posZ;
 				//} else {
-					//limit = 2;
+				//limit = 2;
 				//}
 			}
 			int amt = renderersLoaded < 27 ? renderersLoaded : Math.max(renderersLoaded >> 1, 27);
@@ -375,6 +378,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		if (pass == 0 && mc.gameSettings.showDebugInfo) {
 
+			mc.theWorld.theProfiler.startSection("debug_info");
 			int renderersNotInitialized = 0, renderersBeingClipped = 0, renderersBeingOccluded = 0;
 			int renderersBeingRendered = 0, renderersSkippingRenderPass = 0, renderersNeedUpdate = 0;
 			WorldRenderer[] worldRenderers = this.worldRenderers;
@@ -402,6 +406,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			this.renderersBeingRendered = renderersBeingRendered;
 			this.renderersSkippingRenderPass = renderersSkippingRenderPass;
 			this.renderersNeedUpdate = renderersNeedUpdate;
+			mc.theWorld.theProfiler.endSection();
 		}
 
 		int glListsRendered = 0, allRenderListsLength = 0;
@@ -656,7 +661,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		worker.run(true);
 	}
 
-	private int fixPos(int pos, int amt) {
+	private static int fixPos(int pos, int amt) {
 
 		int r = MathHelper.bucketInt(pos, 16) % amt;
 		return r < 0 ? r + amt : r;
@@ -664,11 +669,11 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 	private WorldRenderer getRenderer(int x, int y, int z) {
 
-		if ((y - 15) > maxBlockY || y < minBlockY)
+		if ((y - 15) > maxBlockY | y < minBlockY)
 			return null;
-		if ((x - 15) > maxBlockX || x < minBlockX)
+		if ((x - 15) > maxBlockX | x < minBlockX)
 			return null;
-		if ((z - 15) > maxBlockZ || z < minBlockZ)
+		if ((z - 15) > maxBlockZ | z < minBlockZ)
 			return null;
 		x = fixPos(x, renderChunksWide);
 		y = fixPos(y, renderChunksTall);
@@ -709,6 +714,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		private Frustrum fStack = new Frustrum();
 		private IdentityHashMap<WorldRenderer, CullInfo> log = new IdentityHashMap<WorldRenderer, CullInfo>();
 		private WorldClient theWorld;
+		private ClientChunk[] chunkArray = null;
 		private RenderGlobal render;
 
 		public void run(boolean immediate) {
@@ -731,21 +737,46 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					rend.isVisible = false;
 				}
 				WorldRenderer center;
-				WorldClient theWorld = this.theWorld;
-				ArrayDeque<CullInfo> queue = this.queue;
 				RenderPosition back = RenderPosition.getBackFacingFromVector(view);
-				Vector3 p_view = new Vector3();
-				Vector3 view_look = new Vector3();
+				WorldClient theWorld = this.theWorld;
+				int renderDistanceChunks = render.renderDistanceChunks, renderDistanceWidth = renderDistanceChunks * 2 + 1;
+				ClientChunk[] chunks;
+				int chunkX, chunkZ;
+
+				ArrayDeque<CullInfo> queue = this.queue;
+				//Vector3 p_view = new Vector3();
+				//Vector3 view_look = new Vector3();
 				{
 					int x = MathHelper.floor_double(view.posX);
 					int y = MathHelper.floor_double(view.posY + view.getEyeHeight());
 					int z = MathHelper.floor_double(view.posZ);
-					view_look.set(0, 0, -1);
-					view_look.rotate(view.rotationPitch * (float) Math.PI / 180, Vector3.axes[3]);
-					view_look.rotate(view.rotationYaw * (float) Math.PI / 180, Vector3.axes[1]);
-					view_look.normalize();
+					//view_look.set(0, 0, -1);
+					//view_look.rotate(view.rotationPitch * (float) Math.PI / 180, Vector3.axes[3]);
+					//view_look.rotate(view.rotationYaw * (float) Math.PI / 180, Vector3.axes[1]);
+					//view_look.normalize();
 
-					p_view.set(view_look).multiply(64).add(x, y, z);
+					//p_view.set(view_look).multiply(64).add(x, y, z);
+
+					{
+						int t = ++renderDistanceWidth * renderDistanceWidth--;
+						chunks = chunkArray == null || chunkArray.length != t ? chunkArray = new ClientChunk[t] : chunkArray;
+
+						chunkX = (x >> 4) - renderDistanceChunks - 1;
+						chunkZ = (z >> 4) - renderDistanceChunks - 1;
+
+
+				        for (int j2 = 0; j2 <= renderDistanceWidth; ++j2) {
+				        	int left = j2 * renderDistanceWidth;
+				            for (int k2 = 0; k2 <= renderDistanceWidth; ++k2) {
+				            	Chunk chunk = theWorld.getChunkFromChunkCoords(j2 + chunkX, k2 + chunkZ);
+				            	if (chunk instanceof ClientChunk) {
+				            		chunks[left + k2] = (ClientChunk) chunk;
+				            	} else {
+				            		chunks[left + k2] = null;
+				            	}
+				            }
+				        }
+					}
 
 					center = render.getRenderer(x, y, z);
 					if (center == null) {
@@ -766,7 +797,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						boolean allNull = false;
 						for (int size = 1; !allNull; ++size) {
 							allNull = true;
-							for (int i = 0, j = size; i < size; ) {
+							for (int i = 0, j = size; i < size;) {
 								for (int k = 0; k < 4; ++k) {
 									int xm = (k & 1) == 0 ? -1 : 1;
 									int zm = (k & 2) == 0 ? -1 : 1;
@@ -785,14 +816,13 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 								--j;
 							}
 						}
-						System.nanoTime();
 					} else {
-						Chunk chunk = theWorld.getChunkFromBlockCoords(center.posX, center.posZ);
-						if (chunk instanceof ClientChunk) {
-							VisGraph sides = ((ClientChunk) chunk).visibility[center.posY >> 4];
+						ClientChunk chunk = chunks[((center.posX >> 4) - chunkX) * renderDistanceWidth + ((center.posZ >> 4) - chunkZ)];
+						if (chunk != null) {
+							VisGraph sides = chunk.visibility[center.posY >> 4];
 							{
 								markRenderer(center, view, sides);
-								CullInfo info = new CullInfo(center, back, (render.renderDistanceChunks >> 1) * -1 - 3);
+								CullInfo info = new CullInfo(center, back, (renderDistanceChunks >> 1) * -1 - 3);
 								info.facings.remove(back);
 								log.put(center, info);
 							}
@@ -808,7 +838,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 								if (t == null)
 									continue;
 
-								CullInfo info = new CullInfo(t, pos, (render.renderDistanceChunks >> 1) * -1 - 2);
+								CullInfo info = new CullInfo(t, pos, (renderDistanceChunks >> 1) * -1 - 2);
 								info.facings.remove(pos);
 								log.put(t, info);
 								queue.add(info);
@@ -816,6 +846,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						}
 					}
 				}
+
 				if (!queue.isEmpty()) {
 					@SuppressWarnings("unused")
 					int visited = queue.size(), considered = visited;
@@ -833,6 +864,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					//Matrix4 view_p = new Matrix4(ClippingHelperImpl.instance.projectionMatrix);
 					//Vector3 p_chunk = new Vector3();
 					// TODO: frustrum stack: https://tomcc.github.io/frustum_clamping.html
+					IdentityHashMap<WorldRenderer, CullInfo> log = this.log;
+					RenderGlobal render = this.render;
 					RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal() ^ 1];
 					for (; !queue.isEmpty();) {
 						CullInfo info = queue.pollFirst();
@@ -841,14 +874,14 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						}
 
 						info.visited = true;
-						if (info.count > render.renderDistanceChunks)
+						if (info.count > renderDistanceChunks)
 							continue;
 
 						WorldRenderer rend = info.rend;
-						Chunk chunk = theWorld.getChunkFromBlockCoords(rend.posX, rend.posZ);
+						ClientChunk chunk = chunks[((rend.posX >> 4) - chunkX) * renderDistanceWidth + ((rend.posZ >> 4) - chunkZ)];
 
-						if (chunk instanceof ClientChunk) {
-							VisGraph sides = ((ClientChunk) chunk).visibility[rend.posY >> 4];
+						if (chunk != null) {
+							VisGraph sides = chunk.visibility[rend.posY >> 4];
 							RenderPosition opp = info.last;
 
 							markRenderer(rend, view, sides);
@@ -857,12 +890,14 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							//view_p.perspective(0, 0, (float) p_chunk.sub(p_view).mag(), 1250);
 							//fStack.set(view_m, view_p);
 
+							SetVisibility vis = sides.getVisibility();
+							boolean allVis = vis.isAllVisible(true);
 							for (int p = 0; p < 6; ++p) {
 								RenderPosition pos = bias[p];
 								if (pos == opp || info.facings.contains(pos))
 									continue;
 
-								if (sides.getVisibility().isVisible(opp.facing, pos.facing)) {
+								if (allVis || vis.isVisible(opp.facing, pos.facing)) {
 									info.facings.add(pos);
 
 									WorldRenderer t = render.getRenderer(rend.posX + pos.x, rend.posY + pos.y, rend.posZ + pos.z);
@@ -871,7 +906,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 										int cost = 1;
 
 										if (pos == back) {
-											cost += render.renderDistanceChunks >> 1;
+											cost += renderDistanceChunks >> 1;
 										}
 
 										CullInfo prev = log.get(t);
@@ -880,15 +915,15 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 												continue;
 
 											t: if (!prev.visited) {
-												Chunk o;
-												if (t.posX != rend.posX || t.posZ != rend.posZ) {
-													o = theWorld.getChunkFromBlockCoords(t.posX, t.posZ);
-													if (!(o instanceof ClientChunk)) {
+												ClientChunk o;
+												if (t.posX != rend.posX | t.posZ != rend.posZ) {
+													o = chunks[((t.posX >> 4) - chunkX) * renderDistanceWidth + ((t.posZ >> 4) - chunkZ)];
+													if (o == null) {
 														break t;
 													}
 												} else
 													o = chunk;
-												VisGraph oSides = ((ClientChunk) o).visibility[t.posY >> 4];
+												VisGraph oSides = o.visibility[t.posY >> 4];
 												if (oSides.getVisibility().isVisible(pos.facing, prev.last.facing)) {
 													continue;
 												}
@@ -898,7 +933,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 										//if (!fStack.isBoundingBoxInFrustum(t.rendererBoundingBox))
 										//continue;
 
-										if (t.isWaitingOnOcclusionQuery || sides.getVisibility().isAllVisible(true)) {
+										if (t.isWaitingOnOcclusionQuery | allVis) {
 											cost -= 3;
 											cost &= ~cost >> 31;
 										}
@@ -934,7 +969,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					render.sortedWorldRenderers[render.renderersLoaded++] = rend;
 				}
 			}
-			if (!rend.isInitialized || rend.needsUpdate || vis.isRenderDirty()) {
+			if (!rend.isInitialized | rend.needsUpdate || vis.isRenderDirty()) {
 				rend.needsUpdate = true;
 				if (!rend.isInitialized || (rend.needsUpdate && rend.distanceToEntitySquared(view) <= 1128.0F)) {
 					render.workerWorldRenderers.push(rend);
