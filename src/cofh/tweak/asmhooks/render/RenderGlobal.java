@@ -68,8 +68,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		WorldRenderer[] worldRenderers = this.sortedWorldRenderers;
 		for (int i = 0, e = this.renderersLoaded; i < e; ++i) {
 			WorldRenderer rend = worldRenderers[i];
-			if (rend.isWaitingOnOcclusionQuery & rend.isInitialized)
-				continue;
 			if (!rend.isInFrustum | ((i + o) & 15) == 0) {
 				rend.updateInFrustum(camera);
 			}
@@ -522,6 +520,11 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					boolean flag = worldrenderer.needsUpdate;
 					worldrenderer.setPosition(k1, i3, j2);
 
+					if (!worldrenderer.isInitialized) {
+						worldrenderer.isWaitingOnOcclusionQuery = false;
+						worldrenderer.isVisible = false;
+					}
+
 					if (!flag && worldrenderer.needsUpdate) {
 						worldRenderersToUpdate.add(worldrenderer);
 					}
@@ -829,7 +832,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							}
 						}
 					} else {
-						ClientChunk chunk = chunks[((center.posX >> 4) - chunkX) * renderDistanceWidth + ((center.posZ >> 4) - chunkZ)];
+						ClientChunk chunk = getChunk(chunks, center, chunkX, chunkZ, renderDistanceWidth);
 						if (chunk != null) {
 							VisGraph sides = chunk.visibility[center.posY >> 4];
 							{
@@ -890,7 +893,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							continue;
 
 						WorldRenderer rend = info.rend;
-						ClientChunk chunk = chunks[((rend.posX >> 4) - chunkX) * renderDistanceWidth + ((rend.posZ >> 4) - chunkZ)];
+						ClientChunk chunk = getChunk(chunks, rend, chunkX, chunkZ, renderDistanceWidth);
 
 						if (chunk != null) {
 							VisGraph sides = chunk.visibility[rend.posY >> 4];
@@ -929,7 +932,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 											t: if (!prev.visited) {
 												ClientChunk o;
 												if (t.posX != rend.posX | t.posZ != rend.posZ) {
-													o = chunks[((t.posX >> 4) - chunkX) * renderDistanceWidth + ((t.posZ >> 4) - chunkZ)];
+													o = getChunk(chunks, t, chunkX, chunkZ, renderDistanceWidth);
 													if (o == null) {
 														break t;
 													}
@@ -987,6 +990,15 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 					render.workerWorldRenderers.push(rend);
 				}
 			}
+		}
+
+		private static ClientChunk getChunk(ClientChunk[] chunks, WorldRenderer rend, int chunkX, int chunkZ, int renderDistanceWidth) {
+
+			int x = (rend.posX >> 4) - chunkX, z = (rend.posZ >> 4) - chunkZ;
+			if (x < 0 | z < 0 | x > renderDistanceWidth | z > renderDistanceWidth) {
+				return null;
+			}
+			return chunks[x * renderDistanceWidth + z];
 		}
 
 		private static class CullInfo {
