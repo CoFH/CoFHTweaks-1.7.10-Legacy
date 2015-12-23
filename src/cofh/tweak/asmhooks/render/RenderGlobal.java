@@ -14,6 +14,7 @@ import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
@@ -36,6 +37,8 @@ import net.minecraftforge.client.MinecraftForgeClient;
 import org.lwjgl.opengl.GL11;
 
 public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
+
+	public static final ReentrantLock lock = new ReentrantLock();
 
 	private int renderersNeedUpdate;
 	private int prevRotationPitch = -9999;
@@ -601,6 +604,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	public void loadRenderers() {
 
 		if (theWorld != null) {
+			lock.lock();
 			Blocks.leaves.setGraphicsLevel(mc.gameSettings.fancyGraphics);
 			Blocks.leaves2.setGraphicsLevel(mc.gameSettings.fancyGraphics);
 			renderDistanceChunks = mc.gameSettings.renderDistanceChunks;
@@ -657,7 +661,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			if (view != null) {
 				markRenderersForNewPosition(MathHelper.floor_double(view.posX), MathHelper.floor_double(view.posY), MathHelper.floor_double(view.posZ));
 			}
-
+			lock.unlock();
 		}
 		worker.dirty = true;
 	}

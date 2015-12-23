@@ -139,7 +139,9 @@ public class ClientChunk extends Chunk {
 				}
 			}
 		}
+		RenderGlobal.lock.lock();
 		worldObj.markBlockRangeForRenderUpdate(xPosition * 16 - 1, 0, zPosition * 16 - 1, xPosition * 16 + 16, 255, zPosition * 16 + 16);
+		RenderGlobal.lock.unlock();
 		return this;
 	}
 
