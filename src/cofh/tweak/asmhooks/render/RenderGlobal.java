@@ -42,6 +42,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	private int prevRotationYaw = -9999;
 	private int prevRenderX, prevRenderY, prevRenderZ;
 	private short alphaSortProgress = 0;
+	private int countTileEntitiesTotal, countTileEntitiesRendered;
 	private IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList;
 	private IdentityLinkedHashList<WorldRenderer> workerWorldRenderers;
 
@@ -152,6 +153,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			countEntitiesTotal = 0;
 			countEntitiesRendered = 0;
 			countEntitiesHidden = 0;
+			countTileEntitiesTotal = 0;
+			countTileEntitiesRendered = 0;
 		}
 
 		view = mc.renderViewEntity;
@@ -187,7 +190,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		@SuppressWarnings("rawtypes")
 		List list = theWorld.getLoadedEntityList();
 		if (pass == 0) {
-			countEntitiesTotal = list.size();
+			countEntitiesTotal = list.size() + theWorld.weatherEffects.size();
 		}
 
 		for (int i = 0; i < theWorld.weatherEffects.size(); ++i) {
@@ -235,9 +238,13 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		RenderHelper.enableStandardItemLighting();
 
 		List<TileEntity> tileEntities = this.tileEntities;
+		if (pass == 0) {
+			countTileEntitiesTotal = tileEntities.size();
+		}
 		for (int i = 0; i < tileEntities.size(); ++i) {
 			TileEntity tile = tileEntities.get(i);
 			if (tile.shouldRenderInPass(pass) && camera.isBoundingBoxInFrustum(tile.getRenderBoundingBox())) {
+				++countTileEntitiesRendered;
 				TileEntityRendererDispatcher.instance.renderTileEntity(tile, tick);
 			}
 		}
@@ -264,10 +271,11 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	@Override
 	public String getDebugInfoEntities() {
 
-		StringBuilder r = new StringBuilder(3 + 4 + 1 + 4 + 5 + 4 + 5 + 4);
+		StringBuilder r = new StringBuilder(3 + 4 + 1 + 4 + 5 + 4 + 5 + 4 + 5 + 4 + 1 + 4);
 		r.append("E: ").append(countEntitiesRendered).append('/').append(countEntitiesTotal);
 		r.append(". B: ").append(countEntitiesHidden);
 		r.append(", I: ").append(countEntitiesTotal - countEntitiesHidden - countEntitiesRendered);
+		r.append("; TE: ").append(countTileEntitiesRendered).append('/').append(countTileEntitiesTotal);
 		return r.toString();
 	}
 
