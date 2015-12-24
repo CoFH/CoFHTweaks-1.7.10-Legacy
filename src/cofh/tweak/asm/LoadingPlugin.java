@@ -22,6 +22,7 @@ import cpw.mods.fml.relauncher.Side;
 
 import java.awt.Desktop;
 import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 import javax.swing.JEditorPane;
 import javax.swing.JOptionPane;
@@ -30,6 +31,7 @@ import javax.swing.event.HyperlinkListener;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.launchwrapper.Launch;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
 
@@ -39,6 +41,7 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 
 	public static final String MC_VERSION = "[1.7.10]";
 	public static boolean runtimeDeobfEnabled = false;
+	public static final boolean obfuscated;
 
 	public static final File minecraftHome;
 
@@ -46,6 +49,12 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 
 		minecraftHome = (File) FMLInjectionData.data()[6];
 		versionCheck(MC_VERSION, "CoFHTweaks");
+		boolean obf = true;
+		try {
+			obf = Launch.classLoader.getClassBytes("net.minecraft.world.World") == null;
+		} catch (IOException e) {
+		}
+		obfuscated = obf;
 		Config.loadConfig(minecraftHome);
 	}
 

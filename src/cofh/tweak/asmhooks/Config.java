@@ -90,6 +90,6 @@ public class Config {
 	public static boolean agressiveCulling = false;
 	public static boolean distantCulling = false;
 	public static boolean agressiveAICulling = false;
-	public static boolean showFPS = !LoadingPlugin.runtimeDeobfEnabled;
+	public static boolean showFPS = !LoadingPlugin.obfuscated;
 
 }
