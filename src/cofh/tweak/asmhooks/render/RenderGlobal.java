@@ -1,6 +1,7 @@
 package cofh.tweak.asmhooks.render;
 
 import cofh.repack.cofh.lib.util.IdentityLinkedHashList;
+import cofh.repack.com.sun.org.apache.xml.internal.utils.IntStack;
 import cofh.repack.net.minecraft.client.renderer.chunk.SetVisibility;
 import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
 import cofh.tweak.CoFHTweaks;
@@ -14,7 +15,6 @@ import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
@@ -38,7 +38,29 @@ import org.lwjgl.opengl.GL11;
 
 public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
-	public static final ReentrantLock lock = new ReentrantLock();
+	private static IntStack deferredAreas = new IntStack(6 * 1024);
+
+	public static synchronized final void updateArea(int x, int y, int z, int x2, int y2, int z2) {
+
+		// backwards so it's more logical to extract
+		deferredAreas.add(z2);
+		deferredAreas.add(y2);
+		deferredAreas.add(x2);
+		deferredAreas.add(z);
+		deferredAreas.add(y);
+		deferredAreas.add(x);
+	}
+
+	private static synchronized final void processUpdate(RenderGlobal render) {
+
+		if (deferredAreas.isEmpty()) {
+			return; // guard against multiple instances (no compatibility with mods that do this to us)
+		}
+
+		int x = deferredAreas.pop(), y = deferredAreas.pop(), z = deferredAreas.pop();
+		int x2 = deferredAreas.pop(), y2 = deferredAreas.pop(), z2 = deferredAreas.pop();
+		render.markBlocksForUpdate(x, y, z, x2, y2, z2);
+	}
 
 	private int renderersNeedUpdate;
 	private int prevRotationPitch = -9999;
@@ -85,13 +107,32 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			prevRotationYaw = yaw;
 			prevRotationPitch = pitch;
 		}
+
+		theWorld.theProfiler.endStartSection("deferred_updates");
+		long start;
+
+		if (deferredAreas.size() > 0) {
+			start = System.nanoTime();
+			for (int i = 0; deferredAreas.size() > 0; ) {
+				processUpdate(this);
+
+				if (++i > 5) {
+					i = 0;
+					long t = (System.nanoTime() - start) >>> 1;
+					if (t > 200000L >>> 1)
+						break;
+				}
+			}
+		}
+
+		theWorld.theProfiler.endStartSection("rebuild");
+		start = System.nanoTime();
+
 		int lim = worldRenderersToUpdate.size() + workerWorldRenderers.size();
 		if (lim == 0) {
 			theWorld.theProfiler.endSection();
 			return true;
 		}
-		theWorld.theProfiler.endStartSection("rebuild");
-		long start = System.nanoTime();
 
 		IdentityLinkedHashList<WorldRenderer> workerWorldRenderers = this.workerWorldRenderers;
 		IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList = this.worldRenderersToUpdateList;
@@ -120,7 +161,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			if (i > 5) {
 				i = 0;
 				long t = (System.nanoTime() - start) >>> 1;
-				if (t > 5000000L >>> 1)
+				if (t > 4000000L >>> 1)
 					break;
 			}
 		}
@@ -453,7 +494,142 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		return glListsRendered;
 	}
 
-	private void markRenderers(int x, int y, int z) {
+	@Override
+	public void markBlocksForUpdate(int x1, int y1, int z1, int x2, int y2, int z2) {
+
+		int k1 = MathHelper.bucketInt(x1, 16);
+		int l1 = MathHelper.bucketInt(y1, 16);
+		int i2 = MathHelper.bucketInt(z1, 16);
+		int j2 = MathHelper.bucketInt(x2, 16);
+		int k2 = MathHelper.bucketInt(y2, 16);
+		int l2 = MathHelper.bucketInt(z2, 16);
+		boolean rebuild = false;
+
+		for (int i3 = k1; i3 <= j2; ++i3) {
+			int j3 = i3 % this.renderChunksWide;
+
+			if (j3 < 0) {
+				j3 += this.renderChunksWide;
+			}
+
+			for (int k3 = l1; k3 <= k2; ++k3) {
+				int l3 = k3 % this.renderChunksTall;
+
+				if (l3 < 0) {
+					l3 += this.renderChunksTall;
+				}
+
+				for (int i4 = i2; i4 <= l2; ++i4) {
+					int j4 = i4 % this.renderChunksDeep;
+
+					if (j4 < 0) {
+						j4 += this.renderChunksDeep;
+					}
+
+					int k4 = (j4 * renderChunksTall + l3) * renderChunksWide + j3;
+					WorldRenderer worldrenderer = worldRenderers[k4];
+
+					if (!worldrenderer.needsUpdate) {
+						worldrenderer.markDirty();
+						if (worldrenderer.distanceToEntitySquared(mc.renderViewEntity) > 972.0F) {
+							worldRenderersToUpdate.add(worldrenderer);
+						} else {
+							Chunk chunk = theWorld.getChunkFromBlockCoords(worldrenderer.posX, worldrenderer.posZ);
+							if (chunk instanceof ClientChunk) {
+								if (((ClientChunk) chunk).visibility[worldrenderer.posY >> 4].isRenderDirty()) {
+									rebuild = true;
+								}
+							}
+							workerWorldRenderers.unshift(worldrenderer);
+						}
+					}
+				}
+			}
+		}
+
+		if (rebuild) {
+			worker.run(true);
+		}
+	}
+
+	@Override
+	public void setWorldAndLoadRenderers(WorldClient world) {
+
+		if (world != null) {
+			if (!CoFHTweaks.canHaveWorld()) {
+				FMLLog.bigWarning("World exists prior to starting the server!");
+			}
+		}
+		worker.setWorld(this, world);
+		super.setWorldAndLoadRenderers(world);
+	}
+
+	@Override
+	public void loadRenderers() {
+
+		if (theWorld != null) {
+			Blocks.leaves.setGraphicsLevel(mc.gameSettings.fancyGraphics);
+			Blocks.leaves2.setGraphicsLevel(mc.gameSettings.fancyGraphics);
+			renderDistanceChunks = mc.gameSettings.renderDistanceChunks;
+			if (worldRenderers != null) {
+				for (int i = 0; i < worldRenderers.length; ++i) {
+					worldRenderers[i].stopRendering();
+				}
+			}
+
+			int size = renderDistanceChunks * 2 + 1;
+			renderChunksWide = size;
+			renderChunksTall = 16;
+			renderChunksDeep = size;
+			worldRenderers = new WorldRenderer[renderChunksWide * renderChunksTall * renderChunksDeep];
+			sortedWorldRenderers = new WorldRenderer[renderChunksWide * renderChunksTall * renderChunksDeep];
+			minBlockX = 0;
+			minBlockY = 0;
+			minBlockZ = 0;
+			maxBlockX = renderChunksWide * 16;
+			maxBlockY = renderChunksTall * 16;
+			maxBlockZ = renderChunksDeep * 16;
+
+			this.worldRenderersToUpdate.clear();
+			this.tileEntities.clear();
+			this.onStaticEntitiesChanged();
+
+			int chunkIndex = 0;
+			int glRenderListCount = 0;
+			for (int x = 0; x < renderChunksWide; ++x) {
+				for (int y = 0; y < renderChunksTall; ++y) {
+					for (int z = 0; z < renderChunksDeep; ++z) {
+						int index = (z * renderChunksTall + y) * renderChunksWide + x;
+
+						WorldRenderer rend = new TweakedRenderer(theWorld, tileEntities, x * 16, y * 16, z * 16, glRenderListBase + glRenderListCount);
+						glRenderListCount += 2; // was: 3
+
+						worldRenderers[index] = rend;
+						sortedWorldRenderers[index] = rend;
+
+						rend.isWaitingOnOcclusionQuery = false;
+						rend.isVisible = false;
+						rend.isInFrustum = false;
+						rend.chunkIndex = chunkIndex++;
+						rend.markDirty();
+
+						worldRenderersToUpdate.add(rend);
+					}
+				}
+			}
+
+			EntityLivingBase view = mc.renderViewEntity;
+			renderEntitiesStartupCounter = 2;
+
+			if (view != null) {
+				markRenderersForNewPosition(MathHelper.floor_double(view.posX), MathHelper.floor_double(view.posY), MathHelper.floor_double(view.posZ));
+			}
+		}
+		worker.dirty = true;
+	}
+
+	@Override
+	protected void markRenderersForNewPosition(int x, int y, int z) {
 
 		x -= 8;
 		y -= 8;
@@ -531,148 +707,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				}
 			}
 		}
-	}
-
-	@Override
-	public void markBlocksForUpdate(int x1, int y1, int z1, int x2, int y2, int z2) {
-
-		int k1 = MathHelper.bucketInt(x1, 16);
-		int l1 = MathHelper.bucketInt(y1, 16);
-		int i2 = MathHelper.bucketInt(z1, 16);
-		int j2 = MathHelper.bucketInt(x2, 16);
-		int k2 = MathHelper.bucketInt(y2, 16);
-		int l2 = MathHelper.bucketInt(z2, 16);
-		boolean rebuild = false;
-
-		for (int i3 = k1; i3 <= j2; ++i3) {
-			int j3 = i3 % this.renderChunksWide;
-
-			if (j3 < 0) {
-				j3 += this.renderChunksWide;
-			}
-
-			for (int k3 = l1; k3 <= k2; ++k3) {
-				int l3 = k3 % this.renderChunksTall;
-
-				if (l3 < 0) {
-					l3 += this.renderChunksTall;
-				}
-
-				for (int i4 = i2; i4 <= l2; ++i4) {
-					int j4 = i4 % this.renderChunksDeep;
-
-					if (j4 < 0) {
-						j4 += this.renderChunksDeep;
-					}
-
-					int k4 = (j4 * renderChunksTall + l3) * renderChunksWide + j3;
-					WorldRenderer worldrenderer = worldRenderers[k4];
-
-					if (!worldrenderer.needsUpdate) {
-						worldrenderer.markDirty();
-						if (worldrenderer.distanceToEntitySquared(mc.renderViewEntity) > 972.0F) {
-							worldRenderersToUpdate.add(worldrenderer);
-						} else {
-							Chunk chunk = theWorld.getChunkFromBlockCoords(worldrenderer.posX, worldrenderer.posZ);
-							if (chunk instanceof ClientChunk) {
-								if (((ClientChunk) chunk).visibility[worldrenderer.posY >> 4].isRenderDirty()) {
-									rebuild = true;
-								}
-							}
-							worldRenderersToUpdateList.unshift(worldrenderer);
-						}
-					}
-				}
-			}
-		}
-
-		if (rebuild) {
-			worker.run(true);
-		}
-	}
-
-	@Override
-	public void setWorldAndLoadRenderers(WorldClient world) {
-
-		if (world != null) {
-			if (!CoFHTweaks.canHaveWorld()) {
-				FMLLog.bigWarning("World exists prior to starting the server!");
-			}
-		}
-		worker.setWorld(this, world);
-		super.setWorldAndLoadRenderers(world);
-	}
-
-	@Override
-	public void loadRenderers() {
-
-		if (theWorld != null) {
-			lock.lock();
-			Blocks.leaves.setGraphicsLevel(mc.gameSettings.fancyGraphics);
-			Blocks.leaves2.setGraphicsLevel(mc.gameSettings.fancyGraphics);
-			renderDistanceChunks = mc.gameSettings.renderDistanceChunks;
-			if (worldRenderers != null) {
-				for (int i = 0; i < worldRenderers.length; ++i) {
-					worldRenderers[i].stopRendering();
-				}
-			}
-
-			int size = renderDistanceChunks * 2 + 1;
-			renderChunksWide = size;
-			renderChunksTall = 16;
-			renderChunksDeep = size;
-			worldRenderers = new WorldRenderer[renderChunksWide * renderChunksTall * renderChunksDeep];
-			sortedWorldRenderers = new WorldRenderer[renderChunksWide * renderChunksTall * renderChunksDeep];
-			minBlockX = 0;
-			minBlockY = 0;
-			minBlockZ = 0;
-			maxBlockX = renderChunksWide * 16;
-			maxBlockY = renderChunksTall * 16;
-			maxBlockZ = renderChunksDeep * 16;
-
-			this.worldRenderersToUpdate.clear();
-			this.tileEntities.clear();
-			this.onStaticEntitiesChanged();
-
-			int chunkIndex = 0;
-			int glRenderListCount = 0;
-			for (int x = 0; x < renderChunksWide; ++x) {
-				for (int y = 0; y < renderChunksTall; ++y) {
-					for (int z = 0; z < renderChunksDeep; ++z) {
-						int index = (z * renderChunksTall + y) * renderChunksWide + x;
-
-						WorldRenderer rend = new TweakedRenderer(theWorld, tileEntities, x * 16, y * 16, z * 16, glRenderListBase + glRenderListCount);
-						glRenderListCount += 2; // was: 3
-
-						worldRenderers[index] = rend;
-						sortedWorldRenderers[index] = rend;
-
-						rend.isWaitingOnOcclusionQuery = false;
-						rend.isVisible = false;
-						rend.isInFrustum = false;
-						rend.chunkIndex = chunkIndex++;
-						rend.markDirty();
-
-						worldRenderersToUpdate.add(rend);
-					}
-				}
-			}
-
-			EntityLivingBase view = mc.renderViewEntity;
-			renderEntitiesStartupCounter = 2;
-
-			if (view != null) {
-				markRenderersForNewPosition(MathHelper.floor_double(view.posX), MathHelper.floor_double(view.posY), MathHelper.floor_double(view.posZ));
-			}
-			lock.unlock();
-		}
-		worker.dirty = true;
-	}
-
-	@Override
-	protected void markRenderersForNewPosition(int x, int y, int z) {
-
-		markRenderers(x, y, z);
 		worker.run(true);
 	}
 
@@ -705,9 +739,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	}
 
 	public static RenderWorker worker = new RenderWorker();
-	static {
-		//worker.start();
-	}
 
 	public static class RenderWorker {
 
@@ -726,6 +757,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		public volatile boolean dirty = false;
 		private ArrayDeque<CullInfo> queue = new ArrayDeque<CullInfo>();
+		@SuppressWarnings("unused")
 		private Frustrum fStack = new Frustrum();
 		private IdentityHashMap<WorldRenderer, CullInfo> log = new IdentityHashMap<WorldRenderer, CullInfo>();
 		private WorldClient theWorld;

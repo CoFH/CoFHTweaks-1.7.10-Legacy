@@ -1,7 +1,7 @@
 package cofh.tweak.asmhooks.world;
 
-import cofh.repack.cofh.lib.util.IdentityLinkedHashList;
 import cofh.repack.cofh.lib.util.LinkedHashList;
+import cofh.repack.cofh.lib.util.SynchronizedIdentityLinkedHashList;
 import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
 import cofh.tweak.CoFHTweaks;
 import cofh.tweak.asmhooks.render.RenderGlobal;
@@ -24,8 +24,8 @@ public class ClientChunk extends Chunk {
 			super("Chunk Worker");
 		}
 
-		public LinkedHashList<ClientChunk> loaded = new IdentityLinkedHashList<ClientChunk>();
-		public LinkedHashList<ClientChunk> modified = new IdentityLinkedHashList<ClientChunk>();
+		public LinkedHashList<ClientChunk> loaded = new SynchronizedIdentityLinkedHashList<ClientChunk>();
+		public LinkedHashList<ClientChunk> modified = new SynchronizedIdentityLinkedHashList<ClientChunk>();
 
 		@Override
 		public void run() {
@@ -139,9 +139,7 @@ public class ClientChunk extends Chunk {
 				}
 			}
 		}
-		RenderGlobal.lock.lock();
-		worldObj.markBlockRangeForRenderUpdate(xPosition * 16 - 1, 0, zPosition * 16 - 1, xPosition * 16 + 16, 255, zPosition * 16 + 16);
-		RenderGlobal.lock.unlock();
+		RenderGlobal.updateArea(xPosition * 16 - 1, 0, zPosition * 16 - 1, xPosition * 16 + 16, 255, zPosition * 16 + 16);
 		return this;
 	}
 
