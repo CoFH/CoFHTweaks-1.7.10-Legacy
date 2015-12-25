@@ -124,7 +124,7 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 		}
 	}
 
-	public File myLocation;
+	private static File myLocation;
 
 	public static class CoFHDummyContainer extends DummyModContainer {
 
@@ -139,6 +139,12 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 			md.name = md.description = "CoFH Tweak ASM";
 			md.version = CoFHTweaks.version;
 		}
+
+	    @Override
+	    public File getSource() {
+
+	        return myLocation;
+	    }
 
 		@Override
 		public boolean registerBus(EventBus bus, LoadController controller) {
