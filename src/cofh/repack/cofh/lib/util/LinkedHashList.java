@@ -77,7 +77,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		return size;
 	}
 
-	protected synchronized boolean add(E obj, int hash) {
+	protected boolean add(E obj, int hash) {
 
 		if (seek(obj, hash) != null) {
 			return false;
@@ -106,7 +106,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 	}
 
 	@Override
-	public synchronized E set(int index, E obj) {
+	public E set(int index, E obj) {
 
 		checkElementIndex(index);
 
@@ -125,7 +125,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 	}
 
 	@Override
-	public synchronized void add(int index, E obj) {
+	public void add(int index, E obj) {
 
 		checkPositionIndex(index);
 
@@ -196,13 +196,13 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		return indexOf(o);
 	}
 
-	public synchronized boolean push(E obj) {
+	public boolean push(E obj) {
 
 		int hash = hash(obj);
 		return add(obj, hash);
 	}
 
-	public synchronized E pop() {
+	public E pop() {
 
 		Entry e = tail;
 		if (e != null) {
@@ -222,7 +222,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		return head != null ? (E) head.key : null;
 	}
 
-	public synchronized boolean unshift(E obj) {
+	public boolean unshift(E obj) {
 
 		int hash = hash(obj);
 		if (seek(obj, hash) != null) {
@@ -244,7 +244,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		return true;
 	}
 
-	public synchronized E shift() {
+	public E shift() {
 
 		Entry e = head;
 		if (e != null) {
@@ -255,13 +255,13 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 	}
 
 	@Override
-	public synchronized boolean contains(Object obj) {
+	public boolean contains(Object obj) {
 
 		return seek(obj, hash(obj)) != null;
 	}
 
 	@Override
-	public synchronized boolean remove(Object obj) {
+	public boolean remove(Object obj) {
 
 		Entry e = seek(obj, hash(obj));
 		if (e == null) {
@@ -273,7 +273,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 	}
 
 	@Override
-	public synchronized E remove(int index) {
+	public E remove(int index) {
 
 		checkElementIndex(index);
 
@@ -319,7 +319,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		++size;
 	}
 
-	protected synchronized boolean linkBefore(E obj, Entry succ) {
+	protected boolean linkBefore(E obj, Entry succ) {
 
 		int hash = hash(obj);
 		if (seek(obj, hash) != null) {
@@ -344,7 +344,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 
 	protected void delete(Entry entry) {
 
-		l: synchronized (hashTable) {
+		l: {
 			int bucket = entry.hash & mask;
 			Entry prev = null, cur = hashTable[bucket];
 			if (cur == entry) {
@@ -362,7 +362,7 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 		--size;
 	}
 
-	protected synchronized E unlink(Entry x) {
+	protected E unlink(Entry x) {
 
 		final E element = (E) x.key;
 		final Entry next = x.next;
@@ -391,23 +391,21 @@ public class LinkedHashList<E extends Object> extends AbstractCollection<E> impl
 
 		Entry[] old = hashTable, newTable;
 		if (size > old.length * 2 && old.length < Ints.MAX_POWER_OF_TWO) {
-			synchronized (hashTable) {
-				int newTableSize = old.length * 2, newMask = newTableSize - 1;
-				newTable = new Entry[newTableSize];
+			int newTableSize = old.length * 2, newMask = newTableSize - 1;
+			newTable = new Entry[newTableSize];
 
-				for (int bucket = old.length; bucket-- > 0;) {
-					Entry entry = old[bucket];
-					while (entry != null) {
-						Entry nextEntry = entry.nextInBucket;
-						int keyBucket = entry.hash & newMask;
-						entry.nextInBucket = newTable[keyBucket];
-						newTable[keyBucket] = entry;
-						entry = nextEntry;
-					}
+			for (int bucket = old.length; bucket-- > 0;) {
+				Entry entry = old[bucket];
+				while (entry != null) {
+					Entry nextEntry = entry.nextInBucket;
+					int keyBucket = entry.hash & newMask;
+					entry.nextInBucket = newTable[keyBucket];
+					newTable[keyBucket] = entry;
+					entry = nextEntry;
 				}
-				hashTable = newTable;
-				mask = newMask;
 			}
+			hashTable = newTable;
+			mask = newMask;
 		}
 	}
 
