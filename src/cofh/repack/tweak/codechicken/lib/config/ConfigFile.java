@@ -2,9 +2,9 @@ package cofh.repack.tweak.codechicken.lib.config;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 
 public class ConfigFile extends ConfigTagParent {
@@ -45,7 +45,7 @@ public class ConfigFile extends ConfigTagParent {
 		loading = true;
 		BufferedReader reader = null;
 		try {
-			reader = new BufferedReader(new FileReader(file));
+			reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "utf8"));
 
 			while (true) {
 				reader.mark(2000);
@@ -120,8 +120,8 @@ public class ConfigFile extends ConfigTagParent {
 
 		PrintWriter writer;
 		try {
-			writer = new PrintWriter(file);
-		} catch (FileNotFoundException e) {
+			writer = new PrintWriter(file, "utf8");
+		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
 

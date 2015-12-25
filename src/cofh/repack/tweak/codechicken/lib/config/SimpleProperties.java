@@ -65,7 +65,7 @@ public class SimpleProperties {
 	public void save() {
 
 		try {
-			PrintStream writer = new PrintStream(propertyFile);
+			PrintStream writer = new PrintStream(propertyFile, encoding);
 
 			for (Entry<String, String> entry : propertyMap.entrySet()) {
 				writer.println(entry.getKey() + "=" + entry.getValue());
