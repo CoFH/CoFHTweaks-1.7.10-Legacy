@@ -17,6 +17,7 @@ public class ClientChunk extends Chunk {
 	static {
 		worker.start();
 	}
+
 	private static class ChunkThread extends Thread {
 
 		public ChunkThread() {
@@ -37,11 +38,10 @@ public class ClientChunk extends Chunk {
 					if (chunk != null)
 						modified.add(chunk);
 					if ((i & 3) == 0) {
-						i = 0;
 						yield();
 					}
 				}
-				boolean work = i > 0;
+				boolean work = i != 0;
 				for (i = 0; modified.size() > 0; ++i) {
 					ClientChunk chunk = modified.shift();
 					if (loaded.contains(chunk)) {
@@ -53,11 +53,10 @@ public class ClientChunk extends Chunk {
 						}
 					}
 					if ((i & 7) == 0) {
-						i = 0;
 						yield();
 					}
 				}
-				RenderGlobal.worker.dirty = (i > 0) | work;
+				RenderGlobal.worker.dirty = (i != 0) | work;
 				try {
 					Thread.sleep(30);
 				} catch (InterruptedException e) {
@@ -96,10 +95,10 @@ public class ClientChunk extends Chunk {
 		init(visibility);
 	}
 
-	void checkPosSolid(int x, int y, int z, Block block) {
+	boolean checkPosSolid(int x, int y, int z, Block block) {
 
 		if (y > 255 || y < 0)
-			return;
+			return false;
 		if (block == null) {
 			block = getBlock(x, y, z);
 		}
@@ -107,14 +106,14 @@ public class ClientChunk extends Chunk {
 		y &= 15;
 
 		chunk.setOpaque(x, y, z, block.isOpaqueCube());
+		return chunk.isDirty();
 	}
 
 	@Override
 	public boolean func_150807_a(int x, int y, int z, Block block, int meta) {
 
 		boolean r = super.func_150807_a(x, y, z, block, meta);
-		if (r) {
-			checkPosSolid(x & 15, y, z & 15, block);
+		if (r && checkPosSolid(x & 15, y, z & 15, block)) {
 			worker.modified.add(this);
 		}
 		return r;
