@@ -59,7 +59,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		int x = deferredAreas.pop(), y = deferredAreas.pop(), z = deferredAreas.pop();
 		int x2 = deferredAreas.pop(), y2 = deferredAreas.pop(), z2 = deferredAreas.pop();
-		render.markBlocksForUpdate(x, y, z, x2, y2, z2);
+		render.markBlocksForUpdate_internal(x, y, z, x2, y2, z2);
 	}
 
 	private int renderersNeedUpdate;
@@ -71,12 +71,15 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	private IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList;
 	private IdentityLinkedHashList<WorldRenderer> workerWorldRenderers;
 
+	private final Thread clientThread;
+
 	public RenderGlobal(Minecraft minecraft) {
 
 		super(minecraft);
 		worldRenderersToUpdate = worldRenderersToUpdateList = new IdentityLinkedHashList<WorldRenderer>();
 		workerWorldRenderers = new IdentityLinkedHashList<WorldRenderer>();
 		occlusionEnabled = false;
+		clientThread = Thread.currentThread();
 	}
 
 	@Override
@@ -496,6 +499,15 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 	@Override
 	public void markBlocksForUpdate(int x1, int y1, int z1, int x2, int y2, int z2) {
+
+		if (Thread.currentThread() != clientThread) {
+			updateArea(x1, y1, z1, x2, y2, z2);
+		} else {
+			markBlocksForUpdate_internal(x1, y1, z1, x2, y2, z2);
+		}
+	}
+
+	public void markBlocksForUpdate_internal(int x1, int y1, int z1, int x2, int y2, int z2) {
 
 		int k1 = MathHelper.bucketInt(x1, 16);
 		int l1 = MathHelper.bucketInt(y1, 16);
