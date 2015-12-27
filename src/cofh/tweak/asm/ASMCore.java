@@ -93,19 +93,21 @@ class ASMCore {
 
 		String[] names;
 		if (LoadingPlugin.runtimeDeobfEnabled) {
-			names = new String[] { "func_72945_a", "func_72903_x", "func_147451_t" };
+			names = new String[] { "func_72945_a", "func_72903_x", "func_147451_t", "func_98179_a", "func_147463_c" };
 		} else {
 			names = new String[] { "getCollidingBoundingBoxes", "setActivePlayerChunksAndCheckLight",
-					"func_147451_t" };
+					"func_147451_t", "computeLightValue", "updateLightByType" };
 		}
 
 		ClassNode cn = new ClassNode(ASM5);
 		cr.accept(cn, 0);
 
-		l: {
+		{
 			MethodNode boundingBoxes = null;
 			MethodNode playerCheckLight = null;
-			int m = 0, T = 2;
+			MethodNode computeLightValue = null;
+			MethodNode updateLightByType = null;
+			int m = 0, T = 4;
 			for (MethodNode n : cn.methods) {
 				if (names[0].equals(n.name)) {
 					boundingBoxes = n;
@@ -113,37 +115,72 @@ class ASMCore {
 				} else if (names[1].equals(n.name)) {
 					playerCheckLight = n;
 					if (++m == T) break;
+				} else if (names[3].equals(n.name)) {
+					computeLightValue = n;
+					if (++m == T) break;
+				} else if (names[4].equals(n.name)) {
+					updateLightByType = n;
+					if (++m == T) break;
 				}
 			}
 
-			if (boundingBoxes == null || playerCheckLight == null)
-				break l;
+			if (updateLightByType != null) {
+				updateLightByType.localVariables = null;
 
-			boundingBoxes.localVariables = null;
+				updateLightByType.instructions.clear();
+				updateLightByType.instructions.add(new VarInsnNode(ALOAD, 0));
+				updateLightByType.instructions.add(new VarInsnNode(ALOAD, 1));
+				updateLightByType.instructions.add(new VarInsnNode(ILOAD, 2));
+				updateLightByType.instructions.add(new VarInsnNode(ILOAD, 3));
+				updateLightByType.instructions.add(new VarInsnNode(ILOAD, 4));
+				String sig = "(Lnet/minecraft/world/World;Lnet/minecraft/world/EnumSkyBlock;III)Z";
+				updateLightByType.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "updateLightByType", sig, false));
+				updateLightByType.instructions.add(new InsnNode(IRETURN));
+			}
 
-			boundingBoxes.instructions.clear();
-			boundingBoxes.instructions.add(new VarInsnNode(ALOAD, 0));
-			boundingBoxes.instructions.add(new VarInsnNode(ALOAD, 1));
-			boundingBoxes.instructions.add(new VarInsnNode(ALOAD, 2));
-			String sig = "(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;Lnet/minecraft/util/AxisAlignedBB;)"
-					+ "Ljava/util/List;";
-			boundingBoxes.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "getWorldCollisionBoxes", sig, false));
-			boundingBoxes.instructions.add(new InsnNode(ARETURN));
+			if (computeLightValue != null) {
+				computeLightValue.localVariables = null;
 
-			boolean found = false;
-			for (AbstractInsnNode n = playerCheckLight.instructions.getLast(); n != null; n = n.getPrevious()) {
-				if (found && n.getOpcode() == INVOKEINTERFACE) {
-					if ("isEmpty".equals(((MethodInsnNode) n).name)) {
-						playerCheckLight.instructions.insert(n, new InsnNode(IOR));
-						playerCheckLight.instructions.insert(n, new InsnNode(IXOR));
-						playerCheckLight.instructions.insert(n, new InsnNode(ICONST_1));
-						playerCheckLight.instructions.insert(n, new FieldInsnNode(GETSTATIC, ConfigCore, "lightChunks", "Z"));
-						break;
+				computeLightValue.instructions.clear();
+				computeLightValue.instructions.add(new VarInsnNode(ALOAD, 0));
+				computeLightValue.instructions.add(new VarInsnNode(ILOAD, 1));
+				computeLightValue.instructions.add(new VarInsnNode(ILOAD, 2));
+				computeLightValue.instructions.add(new VarInsnNode(ILOAD, 3));
+				computeLightValue.instructions.add(new VarInsnNode(ALOAD, 4));
+				String sig = "(Lnet/minecraft/world/World;IIILnet/minecraft/world/EnumSkyBlock;)I";
+				computeLightValue.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "computeLightValue", sig, false));
+				computeLightValue.instructions.add(new InsnNode(IRETURN));
+			}
+
+			if (boundingBoxes != null) {
+				boundingBoxes.localVariables = null;
+
+				boundingBoxes.instructions.clear();
+				boundingBoxes.instructions.add(new VarInsnNode(ALOAD, 0));
+				boundingBoxes.instructions.add(new VarInsnNode(ALOAD, 1));
+				boundingBoxes.instructions.add(new VarInsnNode(ALOAD, 2));
+				String sig = "(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;Lnet/minecraft/util/AxisAlignedBB;)"
+						+ "Ljava/util/List;";
+				boundingBoxes.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "getWorldCollisionBoxes", sig, false));
+				boundingBoxes.instructions.add(new InsnNode(ARETURN));
+			}
+
+			if (playerCheckLight != null) {
+				boolean found = false;
+				for (AbstractInsnNode n = playerCheckLight.instructions.getLast(); n != null; n = n.getPrevious()) {
+					if (found && n.getOpcode() == INVOKEINTERFACE) {
+						if ("isEmpty".equals(((MethodInsnNode) n).name)) {
+							playerCheckLight.instructions.insert(n, new InsnNode(IOR));
+							playerCheckLight.instructions.insert(n, new InsnNode(IXOR));
+							playerCheckLight.instructions.insert(n, new InsnNode(ICONST_1));
+							playerCheckLight.instructions.insert(n, new FieldInsnNode(GETSTATIC, ConfigCore, "lightChunks", "Z"));
+							break;
+						}
 					}
-				}
-				if (n.getOpcode() == INVOKEVIRTUAL) {
-					if (names[2].equals(((MethodInsnNode) n).name))
-						found = true;
+					if (n.getOpcode() == INVOKEVIRTUAL) {
+						if (names[2].equals(((MethodInsnNode) n).name))
+							found = true;
+					}
 				}
 			}
 
