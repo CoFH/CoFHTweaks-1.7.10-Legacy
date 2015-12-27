@@ -105,7 +105,7 @@ public class HooksCore {
 			return false;
 		} else {
 			int chunkWidth = 5, chunkRadius = chunkWidth >> 1;
-			int chunkX = (x - chunkRadius * 16) >> 4, chunkZ = (z - chunkRadius * 16) >> 4;
+			int chunkX = (x >> 4) - chunkRadius, chunkZ = (z >> 4) - chunkRadius;
 			Chunk[] chunks = new Chunk[chunkWidth * chunkWidth];
 			for (int i = 0; i < chunks.length; ++i) {
 				int x2 = x + (i % chunkWidth - chunkRadius) * 16;
