@@ -18,6 +18,7 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.FrameNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.LdcInsnNode;
@@ -222,6 +223,7 @@ class ASMCore {
 
 		return bytes;
 	}
+
 	private static byte[] alterbranding(String name, byte[] bytes, ClassReader cr) {
 
 		String names = "computeBranding";
@@ -292,11 +294,11 @@ class ASMCore {
 
 			for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n == null ? null : n.getNext()) {
 				if (n.getOpcode() == NEW) {
-					if ("net/minecraft/world/chunk/Chunk".equals(((TypeInsnNode)n).desc)) {
-						((TypeInsnNode)n).desc = "cofh/tweak/asmhooks/world/ClientChunk";
+					if ("net/minecraft/world/chunk/Chunk".equals(((TypeInsnNode) n).desc)) {
+						((TypeInsnNode) n).desc = "cofh/tweak/asmhooks/world/ClientChunk";
 						for (; n != null; n = n.getNext()) {
 							if (n.getOpcode() == INVOKESPECIAL) {
-								((MethodInsnNode)n).owner = "cofh/tweak/asmhooks/world/ClientChunk";
+								((MethodInsnNode) n).owner = "cofh/tweak/asmhooks/world/ClientChunk";
 								break;
 							}
 						}
@@ -382,7 +384,8 @@ class ASMCore {
 					if (!"net/minecraft/entity/ai/EntityAITasks".equals(node.desc))
 						continue;
 					node.desc = "cofh/tweak/asmhooks/entity/EntityAITasks";
-					for (; n.getOpcode() != INVOKESPECIAL; n = n.getNext());
+					for (; n.getOpcode() != INVOKESPECIAL; n = n.getNext())
+						;
 					((MethodInsnNode) n).owner = node.desc;
 				}
 			}
@@ -545,7 +548,7 @@ class ASMCore {
 								m.instructions.set(mn, new MethodInsnNode(INVOKESTATIC, HooksCore, "tickTextures", sig, false));
 								break mc;
 							}
-						} else if(n.getOpcode() == INVOKESTATIC) {
+						} else if (n.getOpcode() == INVOKESTATIC) {
 							MethodInsnNode mn = (MethodInsnNode) n;
 							if ("cofh/asmhooks/HooksCore".equals(mn.owner) && "tickTextures".equals(mn.name) && sig.equals(mn.desc)) {
 								m.instructions.set(mn, new MethodInsnNode(INVOKESTATIC, HooksCore, "tickTextures", sig, false));
@@ -609,6 +612,17 @@ class ASMCore {
 		return bytes;
 	}
 
+	public static int hash6432shift(long key) {
+
+		key = (~key) + (key << 18);
+		key ^= key >>> 31;
+		key *= 21;
+		key ^= key >>> 11;
+		key += key << 6;
+		key ^= key >>> 22;
+		return (int) key;
+	}
+
 	private static byte[] alterLongHashMap(String name, byte[] bytes, ClassReader cr) {
 
 		String[] names;
@@ -628,14 +642,42 @@ class ASMCore {
 				String mName = m.name;
 				if (names[0].equals(mName) && "(J)I".equals(m.desc)) {
 					updated = true;
-					for (int i = 0, e = m.instructions.size(); i < e; ++i) {
-						AbstractInsnNode n = m.instructions.get(i);
-						if (n.getOpcode() == LXOR) {
-							m.instructions.insertBefore(n, new LdcInsnNode(new Long(13L)));
-							m.instructions.insertBefore(n, new InsnNode(LMUL));
-							break;
-						}
-					}
+					m.localVariables = null;
+
+					m.instructions.clear();
+					// bytecode of hash6432shift(J)I above. better hash function
+					m.instructions.add(new IntInsnNode(LLOAD, 0));
+					m.instructions.add(new LdcInsnNode(new Long(-1)));
+					m.instructions.add(new InsnNode(LXOR));
+					m.instructions.add(new IntInsnNode(LLOAD, 0));
+					m.instructions.add(new IntInsnNode(BIPUSH, 18));
+					m.instructions.add(new InsnNode(LSHL));
+					m.instructions.add(new InsnNode(LADD));
+					m.instructions.add(new InsnNode(DUP2));
+					m.instructions.add(new InsnNode(DUP2));
+					m.instructions.add(new IntInsnNode(BIPUSH, 31));
+					m.instructions.add(new InsnNode(LUSHR));
+					m.instructions.add(new InsnNode(LXOR));
+					m.instructions.add(new InsnNode(DUP2));
+					m.instructions.add(new LdcInsnNode(new Long(21)));
+					m.instructions.add(new InsnNode(LMUL));
+					m.instructions.add(new InsnNode(DUP2));
+					m.instructions.add(new InsnNode(DUP2));
+					m.instructions.add(new IntInsnNode(BIPUSH, 11));
+					m.instructions.add(new InsnNode(LUSHR));
+					m.instructions.add(new InsnNode(LXOR));
+					m.instructions.add(new InsnNode(DUP2));
+					m.instructions.add(new InsnNode(DUP2));
+					m.instructions.add(new IntInsnNode(BIPUSH, 6));
+					m.instructions.add(new InsnNode(LSHL));
+					m.instructions.add(new InsnNode(LADD));
+					m.instructions.add(new InsnNode(DUP2));
+					m.instructions.add(new InsnNode(DUP2));
+					m.instructions.add(new IntInsnNode(BIPUSH, 22));
+					m.instructions.add(new InsnNode(LUSHR));
+					m.instructions.add(new InsnNode(LXOR));
+					m.instructions.add(new InsnNode(L2I));
+					m.instructions.add(new InsnNode(IRETURN));
 					if (containsItem != null) {
 						break;
 					}
