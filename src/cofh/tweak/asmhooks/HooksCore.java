@@ -110,7 +110,9 @@ public class HooksCore {
 			for (int i = 0; i < chunks.length; ++i) {
 				int x2 = x + (i % chunkWidth - chunkRadius) * 16;
 				int z2 = z + (i / chunkWidth - chunkRadius) * 16;
-				chunks[i] = world.getChunkFromBlockCoords(x2, z2);
+				if (world.blockExists(x2, y, z2)) {
+					chunks[i] = world.getChunkFromBlockCoords(x2, z2);
+				}
 			}
 			world.theProfiler.startSection("getBrightness");
 			int minX = x, minY = y, minZ = z;
@@ -119,6 +121,9 @@ public class HooksCore {
 			int arrayRead = 0, arrayEnd = 0;
 
 			Chunk chunk = chunks[((z >> 4) - chunkZ) * chunkWidth + ((x >> 4) - chunkX)];
+			if (chunk == null) {
+				return false;
+			}
 			int savedLight = chunk.getSavedLightValue(type, x & 15, y, z & 15);
 			int computedLight = computeLightValue(world, chunk, x, y, z, type);
 			int posLight;
@@ -152,6 +157,9 @@ public class HooksCore {
 					}
 
 					chunk = chunks[((zO >> 4) - chunkZ) * chunkWidth + ((xO >> 4) - chunkX)];
+					if (chunk == null) {
+						continue;
+					}
 					computedLight = chunk.getSavedLightValue(type, x2, yO, z2);
 
 					if (computedLight == savedLight) {
@@ -232,6 +240,9 @@ public class HooksCore {
 				}
 
 				chunk = chunks[((zO >> 4) - chunkZ) * chunkWidth + ((xO >> 4) - chunkX)];
+				if (chunk == null) {
+					continue;
+				}
 				savedLight = chunk.getSavedLightValue(type, x2, yO, z2);
 				computedLight = computeLightValue(world, chunk, xO, yO, zO, type);
 
