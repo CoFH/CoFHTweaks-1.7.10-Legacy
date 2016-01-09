@@ -15,6 +15,7 @@ import net.minecraft.util.MathHelper;
 import net.minecraft.world.ChunkCache;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.EmptyChunk;
 
 public class TweakedRenderer extends net.minecraft.client.renderer.WorldRenderer {
 
@@ -65,6 +66,17 @@ public class TweakedRenderer extends net.minecraft.client.renderer.WorldRenderer
 			bytesDrawn = 0;
 			vertexState = null;
 
+			Chunk chunk = worldObj.getChunkFromBlockCoords(posX, posZ);
+			if (chunk instanceof EmptyChunk) {
+				if (tileEntityRenderers.size() > 0) {
+					tileEntities.removeAll(tileEntityRenderers);
+					tileEntityRenderers.clear();
+				}
+				needsUpdate = true;
+				isInitialized = false;
+				return;
+			}
+
 			final int xStart = posX;
 			final int yStart = posY;
 			final int zStart = posZ;
@@ -81,16 +93,16 @@ public class TweakedRenderer extends net.minecraft.client.renderer.WorldRenderer
 				tileEntityRenderers.clear();
 			}
 
-			EntityLivingBase view2 = Minecraft.getMinecraft().renderViewEntity;
-			int viewX = MathHelper.floor_double(view2.posX);
-			int viewY = MathHelper.floor_double(view2.posY);
-			int viewZ = MathHelper.floor_double(view2.posZ);
+			++chunksUpdated;
+			if (!chunk.getAreLevelsEmpty(yStart, yEnd)) {
+				final int off = 1;
+				ChunkCache chunkcache = new ChunkCache(worldObj, xStart - off, yStart - off, zStart - off, xEnd + off, yEnd + off, zEnd + off, off);
 
-			final int off = 1;
-			ChunkCache chunkcache = new ChunkCache(worldObj, xStart - off, yStart - off, zStart - off, xEnd + off, yEnd + off, zEnd + off, off);
+				EntityLivingBase view2 = Minecraft.getMinecraft().renderViewEntity;
+				int viewX = MathHelper.floor_double(view2.posX);
+				int viewY = MathHelper.floor_double(view2.posY);
+				int viewZ = MathHelper.floor_double(view2.posZ);
 
-				++chunksUpdated;
-			if (!chunkcache.extendedLevelsInChunkCache()) {
 				RenderBlocks renderblocks = null;
 
 				TileEntityRendererDispatcher dispatcher = TileEntityRendererDispatcher.instance;
@@ -179,15 +191,15 @@ public class TweakedRenderer extends net.minecraft.client.renderer.WorldRenderer
 		}
 	}
 
-    @Override
+	@Override
 	public void setDontDraw() {
 
-    	skipRenderPass[0] = true;
-    	skipRenderPass[1] = true;
-        isInFrustum = false;
-        isInitialized = false;
-        vertexState = null;
-    }
+		skipRenderPass[0] = true;
+		skipRenderPass[1] = true;
+		isInFrustum = false;
+		isInitialized = false;
+		vertexState = null;
+	}
 
 	@Override
 	public void callOcclusionQueryList() {

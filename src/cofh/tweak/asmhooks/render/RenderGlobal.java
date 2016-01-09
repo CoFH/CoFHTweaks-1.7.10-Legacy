@@ -116,7 +116,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		if (deferredAreas.size() > 0) {
 			start = System.nanoTime();
-			for (int i = 0; deferredAreas.size() > 0; ) {
+			for (int i = 0; deferredAreas.size() > 0;) {
 				processUpdate(this);
 
 				if (++i > 5) {
@@ -767,6 +767,11 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			theWorld = world;
 		}
 
+		private static VisGraph DUMMY = new VisGraph();
+		static {
+			DUMMY.computeVisibility();
+		}
+
 		public volatile boolean dirty = false;
 		private ArrayDeque<CullInfo> queue = new ArrayDeque<CullInfo>();
 		@SuppressWarnings("unused")
@@ -778,23 +783,25 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		public void run(boolean immediate) {
 
-			l: try {
+			l: {
 				if (render == null || render.mc == null) {
-					break l;
+					return;
 				}
 				EntityLivingBase view = render.mc.renderViewEntity;
 				if (theWorld == null || view == null) {
-					break l;
+					return;
 				} else {
 					if (!CoFHTweaks.canHaveWorld()) {
 						FMLLog.bigWarning("World exists prior to starting the server!");
 						return;
 					}
 				}
-				render.renderersLoaded = 0;
-				for (WorldRenderer rend : render.worldRenderers) {
-					rend.isVisible = false;
+				theWorld.theProfiler.startSection("prep");
+				WorldRenderer[] renderers = render.sortedWorldRenderers;
+				for (int i = 0, e = render.renderersLoaded; i < e; ++i) {
+					renderers[i].isVisible = false;
 				}
+				render.renderersLoaded = 0;
 				WorldRenderer center;
 				RenderPosition back = RenderPosition.getBackFacingFromVector(view);
 				WorldClient theWorld = this.theWorld;
@@ -816,6 +823,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 					//p_view.set(view_look).multiply(64).add(x, y, z);
 
+					theWorld.theProfiler.endStartSection("gather_chunks");
 					{
 						int t = ++renderDistanceWidth * renderDistanceWidth--;
 						chunks = chunkArray == null || chunkArray.length != t ? chunkArray = new ClientChunk[t] : chunkArray;
@@ -823,20 +831,20 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						chunkX = (x >> 4) - renderDistanceChunks - 1;
 						chunkZ = (z >> 4) - renderDistanceChunks - 1;
 
-
-				        for (int j2 = 0; j2 <= renderDistanceWidth; ++j2) {
-				        	int left = j2 * renderDistanceWidth;
-				            for (int k2 = 0; k2 <= renderDistanceWidth; ++k2) {
-				            	Chunk chunk = theWorld.getChunkFromChunkCoords(j2 + chunkX, k2 + chunkZ);
-				            	if (chunk instanceof ClientChunk) {
-				            		chunks[left + k2] = (ClientChunk) chunk;
-				            	} else {
-				            		chunks[left + k2] = null;
-				            	}
-				            }
-				        }
+						for (int j2 = 0; j2 <= renderDistanceWidth; ++j2) {
+							int left = j2 * renderDistanceWidth;
+							for (int k2 = 0; k2 <= renderDistanceWidth; ++k2) {
+								Chunk chunk = theWorld.getChunkFromChunkCoords(j2 + chunkX, k2 + chunkZ);
+								if (chunk instanceof ClientChunk) {
+									chunks[left + k2] = (ClientChunk) chunk;
+								} else {
+									chunks[left + k2] = null;
+								}
+							}
+						}
 					}
 
+					theWorld.theProfiler.endStartSection("seed_queue");
 					center = render.getRenderer(x, y, z);
 					if (center == null) {
 						int level = y > 5 ? 250 : 5;
@@ -854,6 +862,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							queue.add(info);
 						}
 						boolean allNull = false;
+						theWorld.theProfiler.startSection("gather_world");
 						for (int size = 1; !allNull; ++size) {
 							allNull = true;
 							for (int i = 0, j = size; i < size;) {
@@ -875,37 +884,42 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 								--j;
 							}
 						}
+						theWorld.theProfiler.endSection();
 					} else {
 						ClientChunk chunk = getChunk(chunks, center, chunkX, chunkZ, renderDistanceWidth);
+						VisGraph sides;
 						if (chunk != null) {
-							VisGraph sides = chunk.visibility[center.posY >> 4];
-							{
-								markRenderer(center, view, sides);
-								CullInfo info = new CullInfo(center, back, (renderDistanceChunks >> 1) * -1 - 3);
-								info.facings.remove(back);
-								log.put(center, info);
-							}
+							sides = chunk.visibility[center.posY >> 4];
+						} else {
+							sides = DUMMY;
+						}
+						{
+							markRenderer(center, view, sides);
+							CullInfo info = new CullInfo(center, back, (renderDistanceChunks >> 1) * -1 - 3);
+							info.facings.remove(back);
+							log.put(center, info);
+						}
 
-							Set<EnumFacing> faces = sides.getVisibleFacingsFrom(x, y, z);
-							RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal()];
-							for (int p = 0; p < 6; ++p) {
-								RenderPosition pos = bias[p];
-								if (!faces.contains(pos.facing))
-									continue;
-								WorldRenderer t = render.getRenderer(center.posX + pos.x, center.posY + pos.y, center.posZ + pos.z);
+						Set<EnumFacing> faces = sides.getVisibleFacingsFrom(x, y, z);
+						RenderPosition[] bias = RenderPosition.POSITIONS_BIAS[back.ordinal()];
+						for (int p = 0; p < 6; ++p) {
+							RenderPosition pos = bias[p];
+							if (!faces.contains(pos.facing))
+								continue;
+							WorldRenderer t = render.getRenderer(center.posX + pos.x, center.posY + pos.y, center.posZ + pos.z);
 
-								if (t == null)
-									continue;
+							if (t == null)
+								continue;
 
-								CullInfo info = new CullInfo(t, pos, (renderDistanceChunks >> 1) * -1 - 2);
-								info.facings.remove(pos);
-								log.put(t, info);
-								queue.add(info);
-							}
+							CullInfo info = new CullInfo(t, pos, (renderDistanceChunks >> 1) * -1 - 2);
+							info.facings.remove(pos);
+							log.put(t, info);
+							queue.add(info);
 						}
 					}
 				}
 
+				theWorld.theProfiler.endStartSection("process_queue");
 				if (!queue.isEmpty()) {
 					@SuppressWarnings("unused")
 					int visited = queue.size(), considered = visited;
@@ -939,84 +953,91 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						WorldRenderer rend = info.rend;
 						ClientChunk chunk = getChunk(chunks, rend, chunkX, chunkZ, renderDistanceWidth);
 
+						VisGraph sides;
 						if (chunk != null) {
-							VisGraph sides = chunk.visibility[rend.posY >> 4];
-							RenderPosition opp = info.last;
+							sides = chunk.visibility[rend.posY >> 4];
+						} else {
+							sides = DUMMY;
+						}
+						RenderPosition opp = info.last;
 
-							markRenderer(rend, view, sides);
+						markRenderer(rend, view, sides);
 
-							//p_chunk.set(rend.posX + 8, rend.posY + 8, rend.posZ + 8);
-							//view_p.perspective(0, 0, (float) p_chunk.sub(p_view).mag(), 1250);
-							//fStack.set(view_m, view_p);
+						//p_chunk.set(rend.posX + 8, rend.posY + 8, rend.posZ + 8);
+						//view_p.perspective(0, 0, (float) p_chunk.sub(p_view).mag(), 1250);
+						//fStack.set(view_m, view_p);
 
-							SetVisibility vis = sides.getVisibility();
-							boolean allVis = vis.isAllVisible(true);
-							for (int p = 0; p < 6; ++p) {
-								RenderPosition pos = bias[p];
-								if (pos == opp || info.facings.contains(pos))
-									continue;
+						SetVisibility vis = sides.getVisibility();
+						boolean allVis = vis.isAllVisible(true);
+						for (int p = 0; p < 6; ++p) {
+							RenderPosition pos = bias[p];
+							if (pos == opp || info.facings.contains(pos))
+								continue;
 
-								if (allVis || vis.isVisible(opp.facing, pos.facing)) {
-									info.facings.add(pos);
+							if (allVis || vis.isVisible(opp.facing, pos.facing)) {
+								info.facings.add(pos);
 
-									WorldRenderer t = render.getRenderer(rend.posX + pos.x, rend.posY + pos.y, rend.posZ + pos.z);
-									if (t != null) {
-										++considered;
-										int cost = 1;
+								WorldRenderer t = render.getRenderer(rend.posX + pos.x, rend.posY + pos.y, rend.posZ + pos.z);
+								if (t != null) {
+									++considered;
+									int cost = 1;
 
-										if (pos == back) {
-											cost += renderDistanceChunks >> 1;
+									if (pos == back) {
+										cost += renderDistanceChunks >> 1;
+									}
+
+									CullInfo prev = log.get(t);
+									if (prev != null) {
+										if (prev.facings.contains(pos)) {
+											continue;
 										}
 
-										CullInfo prev = log.get(t);
-										if (prev != null) {
-											if (prev.facings.contains(pos))
+										if (!prev.visited) {
+											ClientChunk o;
+											if (t.posX != rend.posX | t.posZ != rend.posZ) {
+												o = getChunk(chunks, t, chunkX, chunkZ, renderDistanceWidth);
+											} else
+												o = chunk;
+											VisGraph oSides;
+											if (o == null) {
+												oSides = DUMMY;
+											} else {
+												oSides = o.visibility[t.posY >> 4];
+											}
+											if (oSides.getVisibility().isVisible(pos.facing, prev.last.facing)) {
 												continue;
-
-											t: if (!prev.visited) {
-												ClientChunk o;
-												if (t.posX != rend.posX | t.posZ != rend.posZ) {
-													o = getChunk(chunks, t, chunkX, chunkZ, renderDistanceWidth);
-													if (o == null) {
-														break t;
-													}
-												} else
-													o = chunk;
-												VisGraph oSides = o.visibility[t.posY >> 4];
-												if (oSides.getVisibility().isVisible(pos.facing, prev.last.facing)) {
-													continue;
-												}
 											}
 										}
-
-										//if (!fStack.isBoundingBoxInFrustum(t.rendererBoundingBox))
-										//continue;
-
-										if (t.isWaitingOnOcclusionQuery | allVis) {
-											cost -= 3;
-											cost &= ~cost >> 31;
-										}
-
-										++visited;
-										CullInfo data = new CullInfo(t, pos, info.count + cost);
-
-										if (prev != null) {
-											data.facings.addAll(prev.facings);
-										}
-
-										log.put(t, data);
-										queue.add(data);
 									}
+
+									//if (!fStack.isBoundingBoxInFrustum(t.rendererBoundingBox))
+									//continue;
+
+									if (t.isWaitingOnOcclusionQuery | allVis) {
+										cost -= 3;
+										cost &= ~cost >> 31;
+									}
+
+									++visited;
+									CullInfo data = new CullInfo(t, pos, info.count + cost);
+
+									if (prev != null) {
+										data.facings.addAll(prev.facings);
+									}
+
+									log.put(t, data);
+									queue.add(data);
 								}
 							}
 						}
 					}
 				}
+				theWorld.theProfiler.endStartSection("cleanup");
 				queue.clear();
 				log.clear();
-			} finally {
-				dirty = false;
 			}
+			dirty = false;
+			theWorld.theProfiler.endSection();
 		}
 
 		private void markRenderer(WorldRenderer rend, EntityLivingBase view, VisGraph vis) {
