@@ -164,7 +164,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			if (i > 5) {
 				i = 0;
 				long t = (System.nanoTime() - start) >>> 1;
-				if (t > 4000000L >>> 1)
+				if (t > 3500000L >>> 1)
 					break;
 			}
 		}
@@ -462,6 +462,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			mc.theWorld.theProfiler.endSection();
 		}
 
+		mc.theWorld.theProfiler.startSection("setup_lists");
 		int glListsRendered = 0, allRenderListsLength = 0;
 		WorldRenderer[] sortedWorldRenderers = this.sortedWorldRenderers;
 		for (int i = loopStart; i != loopEnd; i += dir) {
@@ -487,6 +488,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			}
 		}
 
+		mc.theWorld.theProfiler.endStartSection("call_lists");
 		mc.entityRenderer.enableLightmap(tick);
 
 		for (int j = 0; j < allRenderListsLength; ++j) {
@@ -494,6 +496,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		}
 
 		mc.entityRenderer.disableLightmap(tick);
+		mc.theWorld.theProfiler.endSection();
+
 		return glListsRendered;
 	}
 
@@ -509,40 +513,39 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 	public void markBlocksForUpdate_internal(int x1, int y1, int z1, int x2, int y2, int z2) {
 
-		int k1 = MathHelper.bucketInt(x1, 16);
-		int l1 = MathHelper.bucketInt(y1, 16);
-		int i2 = MathHelper.bucketInt(z1, 16);
-		int j2 = MathHelper.bucketInt(x2, 16);
-		int k2 = MathHelper.bucketInt(y2, 16);
-		int l2 = MathHelper.bucketInt(z2, 16);
+		int xStart = MathHelper.bucketInt(x1, 16);
+		int yStart = MathHelper.bucketInt(y1, 16);
+		int zStart = MathHelper.bucketInt(z1, 16);
+		int xEnd = MathHelper.bucketInt(x2, 16);
+		int yEnd = MathHelper.bucketInt(y2, 16);
+		int zEnd = MathHelper.bucketInt(z2, 16);
+
+		final int width = this.renderChunksWide;
+		final int height = this.renderChunksTall;
+		final int depth = this.renderChunksDeep;
+		final WorldRenderer[] worldRenderers = this.worldRenderers;
 		boolean rebuild = false;
 
-		for (int i3 = k1; i3 <= j2; ++i3) {
-			int j3 = i3 % this.renderChunksWide;
+		for (int i = xStart; i <= xEnd; ++i) {
+			int x = i % width;
+			x += width & (x >> 31);
 
-			if (j3 < 0) {
-				j3 += this.renderChunksWide;
-			}
+			for (int j = yStart; j <= yEnd; ++j) {
+				int y = j % height;
+				y += height & (y >> 31);
 
-			for (int k3 = l1; k3 <= k2; ++k3) {
-				int l3 = k3 % this.renderChunksTall;
+				for (int k = zStart; k <= zEnd; ++k) {
+					int z = k % depth;
+					z += depth & (z >> 31);
 
-				if (l3 < 0) {
-					l3 += this.renderChunksTall;
-				}
-
-				for (int i4 = i2; i4 <= l2; ++i4) {
-					int j4 = i4 % this.renderChunksDeep;
-
-					if (j4 < 0) {
-						j4 += this.renderChunksDeep;
-					}
-
-					int k4 = (j4 * renderChunksTall + l3) * renderChunksWide + j3;
+					int k4 = (z * height + y) * width + x;
 					WorldRenderer worldrenderer = worldRenderers[k4];
 
-					if (!worldrenderer.needsUpdate) {
+					l: if (!worldrenderer.needsUpdate) {
 						worldrenderer.markDirty();
+						if (!worldrenderer.isVisible)
+							break l;
+
 						if (worldrenderer.distanceToEntitySquared(mc.renderViewEntity) > 972.0F) {
 							worldRenderersToUpdate.add(worldrenderer);
 						} else {
@@ -560,7 +563,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		}
 
 		if (rebuild) {
-			worker.run(true);
+			worker.dirty = true;
 		}
 	}
 
