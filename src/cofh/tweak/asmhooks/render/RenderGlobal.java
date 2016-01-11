@@ -25,6 +25,7 @@ import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.renderer.culling.ICamera;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
+import net.minecraft.client.util.RenderDistanceSorter;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLiving;
 import net.minecraft.entity.EntityLivingBase;
@@ -492,8 +493,15 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		mc.theWorld.theProfiler.endStartSection("call_lists");
 		mc.entityRenderer.enableLightmap(tick);
 
-		for (int j = 0; j < allRenderListsLength; ++j) {
-			allRenderLists[j].callLists();
+		{
+	        int xSort = MathHelper.floor_double(xOff);
+	        int zSort = MathHelper.floor_double(zOff);
+	        xSort -= xSort & 1023;
+	        zSort -= zSort & 1023;
+	        Arrays.sort(allRenderLists, new RenderDistanceSorter(xSort, zSort));
+			for (int j = 0; j < 4; ++j) {
+				allRenderLists[j].callLists();
+			}
 		}
 
 		mc.entityRenderer.disableLightmap(tick);
@@ -733,7 +741,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	private static int fixPos(int pos, int amt) {
 
 		int r = MathHelper.bucketInt(pos, 16) % amt;
-		return r < 0 ? r + amt : r;
+		return r + (amt & (r >> 31));
 	}
 
 	private WorldRenderer getRenderer(int x, int y, int z) {
@@ -995,7 +1003,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 									int cost = 1;
 
 									if (pos == back) {
-										cost += renderDistanceChunks >> 1;
+										cost += renderDistanceChunks;
 									}
 
 									CullInfo prev = log.get(t);
@@ -1015,7 +1023,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 									//continue;
 
 									if (t.isWaitingOnOcclusionQuery | allVis) {
-										cost -= 3;
+										cost -= renderDistanceChunks >> 1;
 										cost &= ~cost >> 31;
 									}
 
