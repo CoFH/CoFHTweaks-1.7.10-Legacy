@@ -5,6 +5,7 @@ import cofh.repack.com.sun.org.apache.xml.internal.utils.IntStack;
 import cofh.repack.net.minecraft.client.renderer.chunk.SetVisibility;
 import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
 import cofh.tweak.CoFHTweaks;
+import cofh.tweak.asmhooks.Config;
 import cofh.tweak.asmhooks.world.ClientChunk;
 import cofh.tweak.util.Frustrum;
 import cpw.mods.fml.common.FMLLog;
@@ -583,8 +584,12 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	public void loadRenderers() {
 
 		if (theWorld != null) {
-			Blocks.leaves.setGraphicsLevel(mc.gameSettings.fancyGraphics);
-			Blocks.leaves2.setGraphicsLevel(mc.gameSettings.fancyGraphics);
+			{
+				int leaves = Config.overrideFancyLeaves;
+				boolean fancyLeaves = leaves == -1 ? mc.gameSettings.fancyGraphics : leaves == 1;
+				Blocks.leaves.setGraphicsLevel(fancyLeaves);
+				Blocks.leaves2.setGraphicsLevel(fancyLeaves);
+			}
 			renderDistanceChunks = mc.gameSettings.renderDistanceChunks;
 			if (worldRenderers != null) {
 				for (int i = 0; i < worldRenderers.length; ++i) {

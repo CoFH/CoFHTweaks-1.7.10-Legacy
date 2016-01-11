@@ -80,6 +80,9 @@ public class Config {
 		comment = "If true, the current FPS will be displayed in the upper left without F3";
 		(tag = config.getTag("Client.ShowFPS")).setComment(comment);
 		showFPS = tag.getBooleanValue(showFPS);
+		comment = "If -1, the default will happen, if 0 leaves will always be solid, if 1 leaves will always be transparent. May not work on all mod leaves";
+		(tag = config.getTag("Client.OverrideFancyLeaves")).setComment(comment);
+		overrideFancyLeaves = tag.getIntValue(overrideFancyLeaves);
 	}
 
 	public static boolean stackItems = true;
@@ -91,5 +94,6 @@ public class Config {
 	public static boolean distantCulling = false;
 	public static boolean agressiveAICulling = false;
 	public static boolean showFPS = !LoadingPlugin.obfuscated;
+	public static int overrideFancyLeaves = -1;
 
 }
