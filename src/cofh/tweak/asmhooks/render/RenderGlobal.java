@@ -863,7 +863,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						}
 						RenderPosition pos = y < 5 ? RenderPosition.UP : RenderPosition.DOWN;
 						{
-							CullInfo info = new CullInfo(center, pos, -2);
+							ClientChunk chunk = getChunk(chunks, center, chunkX, chunkZ, renderDistanceWidth);
+							CullInfo info = new CullInfo(center, chunk == null ? DUMMY : chunk.visibility[center.posY >> 4], pos, -2);
 							info.facings.addAll(RenderPosition.SIDES);
 							info.facings.remove(pos);
 							log.put(center, info);
@@ -882,7 +883,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 										continue;
 									}
 									allNull = false;
-									CullInfo info = new CullInfo(center, pos, -2);
+									ClientChunk chunk = getChunk(chunks, center, chunkX, chunkZ, renderDistanceWidth);
+									CullInfo info = new CullInfo(center, chunk == null ? DUMMY : chunk.visibility[center.posY >> 4], pos, -2);
 									info.facings.addAll(RenderPosition.SIDES);
 									info.facings.remove(pos);
 									log.put(center, info);
@@ -903,7 +905,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 						}
 						{
 							markRenderer(center, view, sides);
-							CullInfo info = new CullInfo(center, back, (renderDistanceChunks >> 1) * -1 - 3);
+							CullInfo info = new CullInfo(center, sides, back, (renderDistanceChunks >> 1) * -1 - 3);
 							info.facings.remove(back);
 							log.put(center, info);
 						}
@@ -919,7 +921,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 							if (t == null)
 								continue;
 
-							CullInfo info = new CullInfo(t, pos, (renderDistanceChunks >> 1) * -1 - 2);
+							chunk = getChunk(chunks, t, chunkX, chunkZ, renderDistanceWidth);
+
+							CullInfo info = new CullInfo(t, chunk == null ? DUMMY : chunk.visibility[t.posY >> 4], pos, (renderDistanceChunks >> 1) * -1 - 2);
 							info.facings.remove(pos);
 							log.put(t, info);
 							queue.add(info);
@@ -1001,18 +1005,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 										}
 
 										if (!prev.visited) {
-											ClientChunk o;
-											if (t.posX != rend.posX | t.posZ != rend.posZ) {
-												o = getChunk(chunks, t, chunkX, chunkZ, renderDistanceWidth);
-											} else
-												o = chunk;
-											VisGraph oSides;
-											if (o == null) {
-												oSides = DUMMY;
-											} else {
-												oSides = o.visibility[t.posY >> 4];
-											}
-											if (oSides.getVisibility().isVisible(pos.facing, prev.last.facing)) {
+											if (prev.vis.getVisibility().isVisible(pos.facing, prev.last.facing)) {
 												continue;
 											}
 										}
@@ -1027,7 +1020,25 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 									}
 
 									++visited;
-									CullInfo data = new CullInfo(t, pos, info.count + cost);
+									CullInfo data;
+									{
+										VisGraph oSides;
+										if (prev == null) {
+											ClientChunk o;
+											if (t.posX != rend.posX | t.posZ != rend.posZ) {
+												o = getChunk(chunks, t, chunkX, chunkZ, renderDistanceWidth);
+											} else
+												o = chunk;
+											if (o == null) {
+												oSides = DUMMY;
+											} else {
+												oSides = o.visibility[t.posY >> 4];
+											}
+										} else {
+											oSides = prev.vis;
+										}
+										data = new CullInfo(t, oSides, pos, info.count + cost);
+									}
 
 									if (prev != null) {
 										data.facings.addAll(prev.facings);
@@ -1079,13 +1090,15 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			boolean visited = false;
 			final int count;
 			final WorldRenderer rend;
+			final VisGraph vis;
 			final RenderPosition last;
 			final EnumSet<RenderPosition> facings;
 
-			public CullInfo(WorldRenderer rend, RenderPosition pos, int count) {
+			public CullInfo(WorldRenderer rend, VisGraph vis, RenderPosition pos, int count) {
 
 				this.count = count;
 				this.rend = rend;
+				this.vis = vis;
 				this.last = pos.getOpposite();
 				this.facings = EnumSet.of(last);
 			}
