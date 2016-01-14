@@ -104,16 +104,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	@Override
 	public boolean updateRenderers(EntityLivingBase view, boolean p_72716_2_) {
 
-		theWorld.theProfiler.startSection("scan");
-		int yaw = MathHelper.floor_float(view.rotationYaw + 45) >> 4;
-		int pitch = MathHelper.floor_float(view.rotationPitch + 45) >> 4;
-		if (worker.dirty || yaw != prevRotationYaw || pitch != prevRotationPitch) {
-			worker.run(true);
-			prevRotationYaw = yaw;
-			prevRotationPitch = pitch;
-		}
-
-		theWorld.theProfiler.endStartSection("deferred_updates");
+		theWorld.theProfiler.startSection("deferred_updates");
 		long start;
 
 		if (deferredAreas.size() > 0) {
@@ -131,46 +122,51 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		}
 
 		theWorld.theProfiler.endStartSection("rebuild");
-		start = System.nanoTime();
-
 		int lim = worldRenderersToUpdate.size() + workerWorldRenderers.size();
-		if (lim == 0) {
-			theWorld.theProfiler.endSection();
-			return true;
-		}
+		if (lim > 0) {
+			start = System.nanoTime();
+			IdentityLinkedHashList<WorldRenderer> workerWorldRenderers = this.workerWorldRenderers;
+			IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList = this.worldRenderersToUpdateList;
+			for (int c = 0, i = 0; c < lim; ++c) {
+				++i;
+				WorldRenderer worldrenderer;
+				if (workerWorldRenderers.size() > 0) {
+					worldrenderer = workerWorldRenderers.shift();
+					worldRenderersToUpdateList.remove(worldrenderer);
+				} else {
+					worldrenderer = worldRenderersToUpdateList.shift();
+				}
 
-		IdentityLinkedHashList<WorldRenderer> workerWorldRenderers = this.workerWorldRenderers;
-		IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList = this.worldRenderersToUpdateList;
-		for (int c = 0, i = 0; c < lim; ++c) {
-			++i;
-			WorldRenderer worldrenderer;
-			if (workerWorldRenderers.size() > 0) {
-				worldrenderer = workerWorldRenderers.shift();
-				worldRenderersToUpdateList.remove(worldrenderer);
-			} else {
-				worldrenderer = worldRenderersToUpdateList.shift();
-			}
-
-			if (worldrenderer == null) {
-				break;
-			}
-
-			if (!(worldrenderer.isInFrustum & worldrenderer.isVisible)) {
-				continue;
-			}
-
-			worldrenderer.updateRenderer(view);
-			worldrenderer.isWaitingOnOcclusionQuery = worldrenderer.skipAllRenderPasses();
-			// can't add fields, re-use
-
-			if (i > 5) {
-				i = 0;
-				long t = (System.nanoTime() - start) >>> 1;
-				if (t > 3500000L >>> 1)
+				if (worldrenderer == null) {
 					break;
+				}
+
+				if (!(worldrenderer.isInFrustum & worldrenderer.isVisible)) {
+					continue;
+				}
+
+				worldrenderer.updateRenderer(view);
+				worldrenderer.isVisible = false;
+				worldrenderer.isWaitingOnOcclusionQuery = worldrenderer.skipAllRenderPasses();
+				// can't add fields, re-use
+
+				if (i > 5) {
+					i = 0;
+					long t = (System.nanoTime() - start) >>> 1;
+					if (t > 3500000L >>> 1)
+						break;
+				}
 			}
 		}
 
+		theWorld.theProfiler.endStartSection("scan");
+		int yaw = MathHelper.floor_float(view.rotationYaw + 45) >> 4;
+		int pitch = MathHelper.floor_float(view.rotationPitch + 45) >> 4;
+		if (worker.dirty || yaw != prevRotationYaw || pitch != prevRotationPitch) {
+			worker.run(true);
+			prevRotationYaw = yaw;
+			prevRotationPitch = pitch;
+		}
 		theWorld.theProfiler.endSection();
 		return true;
 	}
