@@ -2,6 +2,7 @@ package cofh.tweak.asm;
 
 import cofh.tweak.CoFHTweaks;
 import cofh.tweak.asmhooks.Config;
+import cofh.tweak.asmhooks.EventHandler;
 import cofh.tweak.asmhooks.render.RenderGlobal;
 import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
@@ -10,7 +11,11 @@ import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.LoadController;
 import cpw.mods.fml.common.ModMetadata;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
+import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.TickEvent.Phase;
+import cpw.mods.fml.common.gameevent.TickEvent.RenderTickEvent;
+import cpw.mods.fml.common.gameevent.TickEvent.ServerTickEvent;
 import cpw.mods.fml.common.network.FMLNetworkEvent.ClientConnectedToServerEvent;
 import cpw.mods.fml.common.network.FMLNetworkEvent.ClientDisconnectionFromServerEvent;
 import cpw.mods.fml.common.versioning.DefaultArtifactVersion;
@@ -23,6 +28,8 @@ import cpw.mods.fml.relauncher.Side;
 import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
+import java.text.DecimalFormat;
+import java.util.List;
 import java.util.Map;
 import javax.swing.JEditorPane;
 import javax.swing.JOptionPane;
@@ -31,9 +38,18 @@ import javax.swing.event.HyperlinkListener;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.settings.GameSettings;
+import net.minecraft.command.CommandBase;
+import net.minecraft.command.ICommandSender;
 import net.minecraft.launchwrapper.Launch;
+import net.minecraft.profiler.Profiler;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.MathHelper;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
+
+import org.lwjgl.opengl.GL11;
 
 @IFMLLoadingPlugin.TransformerExclusions({ "cofh.tweak.asm." })
 @IFMLLoadingPlugin.SortingIndex(1002)
@@ -122,11 +138,14 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 		if (data.containsKey("coremodLocation")) {
 			myLocation = (File) data.get("coremodLocation");
 		}
+		EventHandler handler = new EventHandler();
+		FMLCommonHandler.instance().bus().register(handler);
+		MinecraftForge.EVENT_BUS.register(handler);
 	}
 
 	private static File myLocation;
 
-	public static class CoFHDummyContainer extends DummyModContainer {
+	public final static class CoFHDummyContainer extends DummyModContainer {
 
 		public static boolean onServer;
 
@@ -140,11 +159,11 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 			md.version = CoFHTweaks.version;
 		}
 
-	    @Override
-	    public File getSource() {
+		@Override
+		public File getSource() {
 
-	        return myLocation;
-	    }
+			return myLocation;
+		}
 
 		@Override
 		public boolean registerBus(EventBus bus, LoadController controller) {
@@ -182,16 +201,211 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 			}
 		}
 
+		// { PROFILING
+
+		@Subscribe
+		public void serverStarting(FMLServerStartingEvent evt) {
+
+			toggleProfiling = profiling = false;
+			evt.registerServerCommand(new CommandBase() {
+
+				@Override
+				public String getCommandName() {
+
+					return "tweaks_profile";
+				}
+
+				@Override
+				public boolean canCommandSenderUseCommand(ICommandSender sender) {
+
+					return true;
+				}
+
+				@Override
+				public String getCommandUsage(ICommandSender p_71518_1_) {
+
+					return '/' + getCommandName();
+				}
+
+				@Override
+				public void processCommand(ICommandSender user, String[] args) {
+
+					if (args.length == 0) {
+						toggleProfiling = true;
+					} else {
+						int p_71383_1_ = parseInt(user, args[0]);
+						List<Profiler.Result> list = profilerResults;
+
+						if (list != null && !list.isEmpty()) {
+							Profiler.Result result = list.get(0);
+
+							if (p_71383_1_ == 0) {
+								if (result.field_76331_c.length() > 0) {
+									int j = debugProfilerName.lastIndexOf(".");
+
+									if (j >= 0) {
+										debugProfilerName = debugProfilerName.substring(0, j);
+									}
+								}
+							} else {
+
+								if (p_71383_1_ < list.size() && !list.get(p_71383_1_).field_76331_c.equals("unspecified")) {
+									if (debugProfilerName.length() > 0) {
+										debugProfilerName = debugProfilerName + ".";
+									}
+
+									debugProfilerName = debugProfilerName + list.get(p_71383_1_).field_76331_c;
+								}
+							}
+						}
+					}
+				}
+
+			});
+		}
+
+		protected String debugProfilerName = "root";
+		protected List<Profiler.Result> profilerResults = null;
+		protected volatile boolean toggleProfiling = false, profiling = false;
+
+		@SubscribeEvent
+		public void onServerTick(ServerTickEvent evt) {
+
+			if (evt.phase == Phase.START & toggleProfiling) {
+				MinecraftServer.getServer().theProfiler.clearProfiling();
+				profiling = MinecraftServer.getServer().theProfiler.profilingEnabled ^= true;
+				toggleProfiling = false;
+				profilerResults = null;
+			} else if (evt.phase == Phase.END & profiling) {
+				profilerResults = MinecraftServer.getServer().theProfiler.getProfilingData(debugProfilerName);
+			}
+		}
+
+		@SubscribeEvent
+		public void onRenderTick(RenderTickEvent evt) {
+
+			GameSettings gameSettings = Minecraft.getMinecraft().gameSettings;
+			if (!gameSettings.showDebugProfilerChart) {
+				List<Profiler.Result> list = profilerResults;
+				if (profiling & list != null && list.size() > 0) {
+			        GL11.glFlush();
+
+			        FontRenderer fontRenderer = Minecraft.getMinecraft().fontRenderer;
+			        int displayWidth = Minecraft.getMinecraft().displayWidth;
+			        int displayHeight = Minecraft.getMinecraft().displayHeight;
+			        Profiler.Result result = list.get(0);
+		            GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);
+		            GL11.glMatrixMode(GL11.GL_PROJECTION);
+		            GL11.glEnable(GL11.GL_COLOR_MATERIAL);
+		            GL11.glLoadIdentity();
+		            GL11.glOrtho(0.0D, displayWidth, displayHeight, 0.0D, 1000.0D, 3000.0D);
+		            GL11.glMatrixMode(GL11.GL_MODELVIEW);
+		            GL11.glLoadIdentity();
+		            GL11.glTranslatef(0.0F, 0.0F, -2000.0F);
+		            GL11.glLineWidth(1.0F);
+		            GL11.glDisable(GL11.GL_TEXTURE_2D);
+		            Tessellator tessellator = Tessellator.instance;
+		            short short1 = 160;
+		            int j = displayWidth - short1 - 10;
+		            int k = displayHeight - short1 * 2;
+		            GL11.glEnable(GL11.GL_BLEND);
+		            tessellator.startDrawingQuads();
+		            tessellator.setColorRGBA_I(0, 200);
+		            tessellator.addVertex(j - short1 * 1.1F, k - short1 * 0.6F - 16.0F, 0.0D);
+		            tessellator.addVertex(j - short1 * 1.1F, k + short1 * 2, 0.0D);
+		            tessellator.addVertex(j + short1 * 1.1F, k + short1 * 2, 0.0D);
+		            tessellator.addVertex(j + short1 * 1.1F, k - short1 * 0.6F - 16.0F, 0.0D);
+		            tessellator.draw();
+		            GL11.glDisable(GL11.GL_BLEND);
+		            double d0 = 0.0D;
+		            int i1;
+
+		            for (int l = 1; l < list.size(); ++l) {
+		                Profiler.Result result1 = list.get(l);
+		                i1 = MathHelper.floor_double(result1.field_76332_a / 4.0D) + 1;
+		                tessellator.startDrawing(6);
+		                tessellator.setColorOpaque_I(result1.func_76329_a());
+		                tessellator.addVertex(j, k, 0.0D);
+		                int j1;
+		                float f;
+		                float f1;
+		                float f2;
+
+		                for (j1 = i1; j1 >= 0; --j1) {
+		                    f = (float)((d0 + result1.field_76332_a * j1 / i1) * Math.PI * 2.0D / 100.0D);
+		                    f1 = MathHelper.sin(f) * short1;
+		                    f2 = MathHelper.cos(f) * short1 * 0.5F;
+		                    tessellator.addVertex(j + f1, k - f2, 0.0D);
+		                }
+
+		                tessellator.draw();
+		                tessellator.startDrawing(5);
+		                tessellator.setColorOpaque_I((result1.func_76329_a() & 16711422) >> 1);
+
+		                for (j1 = i1; j1 >= 0; --j1) {
+		                    f = (float)((d0 + result1.field_76332_a * j1 / i1) * Math.PI * 2.0D / 100.0D);
+		                    f1 = MathHelper.sin(f) * short1;
+		                    f2 = MathHelper.cos(f) * short1 * 0.5F;
+		                    tessellator.addVertex(j + f1, k - f2, 0.0D);
+		                    tessellator.addVertex(j + f1, k - f2 + 10.0F, 0.0D);
+		                }
+
+		                tessellator.draw();
+		                d0 += result1.field_76332_a;
+		            }
+
+		            DecimalFormat decimalformat = new DecimalFormat("##0.00");
+		            GL11.glEnable(GL11.GL_TEXTURE_2D);
+		            String s = "";
+
+		            if (!result.field_76331_c.equals("unspecified")) {
+		                s = s + "[0] ";
+		            }
+
+		            if (result.field_76331_c.length() == 0) {
+		                s = s + "ROOT ";
+		            } else {
+		                s = s + result.field_76331_c + " ";
+		            }
+
+		            i1 = 16777215;
+		            fontRenderer.drawStringWithShadow(s, j - short1, k - short1 / 2 - 16, i1);
+		            fontRenderer.drawStringWithShadow(s = decimalformat.format(result.field_76330_b) + "%", j + short1 - fontRenderer.getStringWidth(s),
+		            		k - short1 / 2 - 14 + fontRenderer.FONT_HEIGHT, i1);
+
+		            for (int k1 = 1; k1 < list.size(); ++k1) {
+		                Profiler.Result result2 = list.get(k1);
+		                String s1 = "";
+
+		                if (result2.field_76331_c.equals("unspecified")) {
+		                    s1 = s1 + "[?] ";
+		                } else {
+		                    s1 = s1 + "[" + (k1) + "] ";
+		                }
+
+		                s1 = s1 + result2.field_76331_c;
+		                fontRenderer.drawStringWithShadow(s1, j - short1, k + short1 / 2 + k1 * 8 + 20, result2.func_76329_a());
+		                fontRenderer.drawStringWithShadow(s1 = decimalformat.format(result2.field_76332_a) + "%", j + short1 - 50 - fontRenderer.getStringWidth(s1), k + short1 / 2 + k1 * 8 + 20, result2.func_76329_a());
+		                fontRenderer.drawStringWithShadow(s1 = decimalformat.format(result2.field_76330_b) + "%", j + short1 - fontRenderer.getStringWidth(s1), k + short1 / 2 + k1 * 8 + 20, result2.func_76329_a());
+		            }
+				}
+			}
+		}
+
+		// }
+
 		@SubscribeEvent
 		public void connect(ClientConnectedToServerEvent evt) {
 
 			onServer = true;
+			profiling = false;
 		}
 
 		@SubscribeEvent
 		public void disconnect(ClientDisconnectionFromServerEvent evt) {
 
 			onServer = false;
+			profiling = false;
 		}
 
 	}

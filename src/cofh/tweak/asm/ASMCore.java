@@ -8,6 +8,8 @@ import cpw.mods.fml.relauncher.Side;
 
 import gnu.trove.map.hash.TObjectByteHashMap;
 
+import java.util.Iterator;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.objectweb.asm.ClassReader;
@@ -55,6 +57,9 @@ class ASMCore {
 		hashes.put("net.minecraft.client.multiplayer.WorldClient", (byte) 9);
 		hashes.put("net.minecraft.client.multiplayer.ChunkProviderClient", (byte) 10);
 		hashes.put("cpw.mods.fml.common.FMLCommonHandler", (byte) 11);
+		hashes.put("net.minecraft.entity.passive.EntitySquid", (byte) 12);
+		hashes.put("net.minecraft.entity.passive.EntityWaterMob", (byte) 13);
+		hashes.put("net.minecraft.entity.ai.EntityAIFollowParent", (byte) 14);
 	}
 
 	static byte[] transform(int index, String name, String transformedName, byte[] bytes) {
@@ -84,6 +89,12 @@ class ASMCore {
 			return alterCPC(transformedName, bytes, cr);
 		case 11:
 			return alterbranding(transformedName, bytes, cr);
+		case 12:
+			return alterSquid(transformedName, bytes, cr);
+		case 13:
+			return alterWaterMob(transformedName, bytes, cr);
+		case 14:
+			return alterFollowParent(transformedName, bytes, cr);
 
 		default:
 			return bytes;
@@ -358,42 +369,54 @@ class ASMCore {
 		return bytes;
 	}
 
-	private static byte[] alterEntityLiving(String name, byte[] bytes, ClassReader cr) {
+	private static byte[] alterFollowParent(String name, byte[] bytes, ClassReader cr) {
 
-		String[] names = { "<init>" };
+		String[] names;
+		if (LoadingPlugin.runtimeDeobfEnabled) {
+			names = new String[] { "func_75250_a", "func_75253_b" };
+		} else {
+			names = new String[] { "shouldExecute", "continueExecuting" };
+		}
 
 		ClassNode cn = new ClassNode(ASM5);
 		cr.accept(cn, 0);
 
-		l: {
-			MethodNode m = null;
+		{
+			MethodNode shouldExecute = null;
+			MethodNode continueExecute = null;
 			for (MethodNode n : cn.methods) {
 				if (names[0].equals(n.name)) {
-					m = n;
-					break;
+					shouldExecute = n;
+				} else if (names[1].equals(n.name)) {
+					continueExecute = n;
 				}
 			}
 
-			if (m == null) {
-				break l;
+			if (shouldExecute != null) {
+				shouldExecute.localVariables = null;
+
+				shouldExecute.instructions.clear();
+				shouldExecute.instructions.add(new VarInsnNode(ALOAD, 0));
+				String sig = "(Lnet/minecraft/entity/ai/EntityAIFollowParent;)Z";
+				shouldExecute.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "shouldChildFollowParent", sig, false));
+				shouldExecute.instructions.add(new InsnNode(IRETURN));
 			}
 
-			for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
-				if (n.getOpcode() == NEW) {
-					TypeInsnNode node = ((TypeInsnNode) n);
-					if (!"net/minecraft/entity/ai/EntityAITasks".equals(node.desc))
-						continue;
-					node.desc = "cofh/tweak/asmhooks/entity/EntityAITasks";
-					for (; n.getOpcode() != INVOKESPECIAL; n = n.getNext())
-						;
-					((MethodInsnNode) n).owner = node.desc;
-				}
+			if (continueExecute != null) {
+				continueExecute.localVariables = null;
+
+				continueExecute.instructions.clear();
+				continueExecute.instructions.add(new VarInsnNode(ALOAD, 0));
+				String sig = "(Lnet/minecraft/entity/ai/EntityAIFollowParent;)Z";
+				continueExecute.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "shouldChildContinueFollowParent", sig, false));
+				continueExecute.instructions.add(new InsnNode(IRETURN));
 			}
 
-			ClassWriter cw = new ClassWriter(0);
+			ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
 			cn.accept(cw);
 			bytes = cw.toByteArray();
 		}
+
 		return bytes;
 	}
 
@@ -438,6 +461,137 @@ class ASMCore {
 		return bytes;
 	}
 
+	private static byte[] alterSquid(String name, byte[] bytes, ClassReader cr) {
+
+		@SuppressWarnings("unused")
+		String[] names;
+		if (LoadingPlugin.runtimeDeobfEnabled) {
+			names = new String[] { "func_85033_bc" };
+		} else {
+			names = new String[] { "collideWithNearbyEntities" };
+		}
+
+		name = name.replace('.', '/');
+		ClassNode cn = new ClassNode(ASM5);
+		cr.accept(cn, 0);
+
+		boolean hasMethod = false, hasPush = false;
+		for (MethodNode n : cn.methods) {
+			if ("cofh_collideCheck".equals(n.name)) {
+				hasMethod = true;
+			} else if (names[0].equals(n.name)) {
+				hasPush = true;
+			}
+		}
+
+		if (!hasMethod) {
+			MethodNode m = new MethodNode(ACC_PUBLIC, "cofh_collideCheck", "()Z", null, null);
+			cn.methods.add(m);
+			m.instructions.add(new InsnNode(ICONST_0));
+			m.instructions.add(new InsnNode(IRETURN));
+		}
+
+		if (!hasPush) {
+			MethodNode m = new MethodNode(ACC_PUBLIC, names[0], "()V", null, null);
+			cn.methods.add(m);
+			m.instructions.add(new InsnNode(RETURN));
+		}
+
+		ClassWriter cw = new ClassWriter(0);
+		cn.accept(cw);
+		bytes = cw.toByteArray();
+
+		return bytes;
+	}
+
+	private static byte[] alterWaterMob(String name, byte[] bytes, ClassReader cr) {
+
+		String[] names;
+		if (LoadingPlugin.runtimeDeobfEnabled) {
+			names = new String[] { "func_70692_ba" };
+		} else {
+			names = new String[] { "canDespawn" };
+		}
+
+		name = name.replace('.', '/');
+		ClassNode cn = new ClassNode(ASM5);
+		cr.accept(cn, 0);
+
+		for (Iterator<MethodNode> i = cn.methods.iterator(); i.hasNext();) {
+			MethodNode n = i.next();
+			if (names[0].equals(n.name)) {
+				i.remove();
+			}
+		}
+
+		ClassWriter cw = new ClassWriter(0);
+		cn.accept(cw);
+		bytes = cw.toByteArray();
+
+		return bytes;
+	}
+
+	private static byte[] alterEntityLiving(String name, byte[] bytes, ClassReader cr) {
+
+		String[] names;
+		if (LoadingPlugin.runtimeDeobfEnabled) {
+			names = new String[] { "<init>", "func_70692_ba", "field_70173_aa" };
+		} else {
+			names = new String[] { "<init>", "canDespawn", "ticksExisted" };
+		}
+
+		ClassNode cn = new ClassNode(ASM5);
+		cr.accept(cn, 0);
+
+		MethodNode m = null;
+		MethodNode canDespawn = null;
+		for (MethodNode n : cn.methods) {
+			if (names[0].equals(n.name)) {
+				m = n;
+			} else if (names[1].equals(n.name)) {
+				canDespawn = n;
+			}
+		}
+
+		if (m != null) {
+			for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+				if (n.getOpcode() == NEW) {
+					TypeInsnNode node = ((TypeInsnNode) n);
+					if (!"net/minecraft/entity/ai/EntityAITasks".equals(node.desc))
+						continue;
+					node.desc = "cofh/tweak/asmhooks/entity/EntityAITasks";
+					for (; n.getOpcode() != INVOKESPECIAL; n = n.getNext())
+						;
+					((MethodInsnNode) n).owner = node.desc;
+				}
+			}
+		}
+
+		if (canDespawn != null) {
+			InsnList list = new InsnList();
+			LabelNode label = new LabelNode();
+			list.add(new VarInsnNode(ALOAD, 0));
+			list.add(new FieldInsnNode(GETFIELD, "net/minecraft/entity/Entity", names[2], "I"));
+			list.add(new LdcInsnNode(new Integer(700))); // SIPUSH fails because ASM framework injects a WIDE marker on it. bug?
+			list.add(new JumpInsnNode(IF_ICMPGE, label));
+			list.add(new InsnNode(ICONST_0));
+			list.add(new InsnNode(IRETURN));
+			list.add(new FrameNode(F_SAME, 0, null, 0, null));
+			list.add(label);
+			list.add(new InsnNode(ICONST_1));
+			list.add(new InsnNode(IRETURN));
+
+			canDespawn.instructions.clear();
+			canDespawn.localVariables = null;
+			canDespawn.instructions.insert(list);
+		}
+
+		ClassWriter cw = new ClassWriter(0);
+		cn.accept(cw);
+		bytes = cw.toByteArray();
+		return bytes;
+	}
+
 	private static byte[] alterEntity(String name, byte[] bytes, ClassReader cr) {
 
 		String[] names;
@@ -453,68 +607,62 @@ class ASMCore {
 
 		String mOwner = "net/minecraft/world/World";
 
-		l: {
-			MethodNode m = null;
-			MethodNode pass = null;
-			boolean hasMethod = false;
-			for (MethodNode n : cn.methods) {
-				if (names[0].equals(n.name)) {
-					m = n;
-				} else if ("cofh_collideCheck".equals(n.name)) {
-					hasMethod = true;
-				} else if (names[3].equals(n.name)) {
-					pass = n;
-				}
+		MethodNode m = null;
+		MethodNode pass = null;
+		boolean hasMethod = false;
+		for (MethodNode n : cn.methods) {
+			if (names[0].equals(n.name)) {
+				m = n;
+			} else if ("cofh_collideCheck".equals(n.name)) {
+				hasMethod = true;
+			} else if (names[3].equals(n.name)) {
+				pass = n;
 			}
-
-			if (m == null || pass == null) {
-				break l;
-			}
-
-			for (int i = 0, e = m.instructions.size(); i < e; ++i) {
-				AbstractInsnNode n = m.instructions.get(i);
-				if (n.getOpcode() == INVOKEVIRTUAL) {
-					MethodInsnNode mn = (MethodInsnNode) n;
-					if (mOwner.equals(mn.owner) && names[1].equals(mn.name)) {
-						mn.setOpcode(INVOKESTATIC);
-						mn.owner = HooksCore;
-						mn.desc = "(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;Lnet/minecraft/util/AxisAlignedBB;)Ljava/util/List;";
-						mn.name = "getEntityCollisionBoxes";
-					}
-				} else if (n.getOpcode() == INVOKESTATIC) {
-					MethodInsnNode mn = (MethodInsnNode) n;
-					if ("cofh/asmhooks/HooksCore".equals(mn.owner) && "getEntityCollisionBoxes".equals(mn.name)) {
-						mn.owner = HooksCore;
-					}
-				}
-			}
-
-			if (FMLLaunchHandler.side() == Side.CLIENT) {
-				InsnList list = new InsnList();
-				LabelNode label = new LabelNode();
-				list.add(new VarInsnNode(ALOAD, 0));
-				list.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "renderEntity", "(Lnet/minecraft/entity/Entity;)Z", false));
-				list.add(new JumpInsnNode(IFNE, label));
-				list.add(new InsnNode(ICONST_0));
-				list.add(new InsnNode(IRETURN));
-				list.add(new FrameNode(F_SAME, 0, null, 0, null));
-				list.add(label);
-
-				pass.instructions.insertBefore(pass.instructions.getFirst(), list);
-			}
-
-			if (!hasMethod) {
-				m = new MethodNode(ACC_PUBLIC, "cofh_collideCheck", "()Z", null, null);
-				cn.methods.add(m);
-				m.instructions.insert(new InsnNode(IRETURN));
-				m.instructions.insert(new MethodInsnNode(INVOKEVIRTUAL, name, names[2], "()Z", false));
-				m.instructions.insert(new VarInsnNode(ALOAD, 0));
-			}
-
-			ClassWriter cw = new ClassWriter(0);
-			cn.accept(cw);
-			bytes = cw.toByteArray();
 		}
+
+		for (int i = 0, e = m.instructions.size(); i < e; ++i) {
+			AbstractInsnNode n = m.instructions.get(i);
+			if (n.getOpcode() == INVOKEVIRTUAL) {
+				MethodInsnNode mn = (MethodInsnNode) n;
+				if (mOwner.equals(mn.owner) && names[1].equals(mn.name)) {
+					mn.setOpcode(INVOKESTATIC);
+					mn.owner = HooksCore;
+					mn.desc = "(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;Lnet/minecraft/util/AxisAlignedBB;)Ljava/util/List;";
+					mn.name = "getEntityCollisionBoxes";
+				}
+			} else if (n.getOpcode() == INVOKESTATIC) {
+				MethodInsnNode mn = (MethodInsnNode) n;
+				if ("cofh/asmhooks/HooksCore".equals(mn.owner) && "getEntityCollisionBoxes".equals(mn.name)) {
+					mn.owner = HooksCore;
+				}
+			}
+		}
+
+		if (FMLLaunchHandler.side() == Side.CLIENT) {
+			InsnList list = new InsnList();
+			LabelNode label = new LabelNode();
+			list.add(new VarInsnNode(ALOAD, 0));
+			list.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "renderEntity", "(Lnet/minecraft/entity/Entity;)Z", false));
+			list.add(new JumpInsnNode(IFNE, label));
+			list.add(new InsnNode(ICONST_0));
+			list.add(new InsnNode(IRETURN));
+			list.add(new FrameNode(F_SAME, 0, null, 0, null));
+			list.add(label);
+
+			pass.instructions.insertBefore(pass.instructions.getFirst(), list);
+		}
+
+		if (!hasMethod) {
+			m = new MethodNode(ACC_PUBLIC, "cofh_collideCheck", "()Z", null, null);
+			cn.methods.add(m);
+			m.instructions.insert(new InsnNode(IRETURN));
+			m.instructions.insert(new MethodInsnNode(INVOKEVIRTUAL, name, names[2], "()Z", false));
+			m.instructions.insert(new VarInsnNode(ALOAD, 0));
+		}
+
+		ClassWriter cw = new ClassWriter(0);
+		cn.accept(cw);
+		bytes = cw.toByteArray();
 
 		return bytes;
 	}

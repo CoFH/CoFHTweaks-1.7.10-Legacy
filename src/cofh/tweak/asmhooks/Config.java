@@ -68,7 +68,7 @@ public class Config {
 		comment = "If true, textures will animate. This overrides the setting in CoFHCore.";
 		(tag = config.getTag("Client.AnimatedTextures")).setComment(comment);
 		animateTextures = tag.getBooleanValue(animateTextures);
-		comment = "If true, entities will be aggressively culled from rendering when tightly packed";
+		comment = "If true, entities will be aggressively culled from rendering when tightly packed. VSync should be turned on if enabled";
 		(tag = config.getTag("Client.AggressiveCulling")).setComment(comment);
 		agressiveCulling = tag.getBooleanValue(agressiveCulling);
 		comment = "If true, entities will be aggressively culled from rendering when far away";

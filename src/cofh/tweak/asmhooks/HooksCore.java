@@ -16,7 +16,9 @@ import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.renderer.texture.ITickable;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.ai.EntityAIFollowParent;
 import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.passive.EntityAnimal;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.AxisAlignedBB;
@@ -37,6 +39,60 @@ public class HooksCore {
 
 		Chunk chunk = world.getChunkFromBlockCoords(x, z);
 		return computeLightValue(world, chunk, x, y, z, type);
+	}
+
+	public static boolean shouldChildContinueFollowParent(EntityAIFollowParent task) {
+
+		if (!task.parentAnimal.isEntityAlive()) {
+			return false;
+		} else {
+			double d0 = task.childAnimal.getDistanceSqToEntity(task.parentAnimal);
+			if (d0 <= (3 * 3) * 3)
+				task.field_75345_d = 30;
+			return d0 <= 256.0D;
+		}
+	}
+
+	public static boolean shouldChildFollowParent(EntityAIFollowParent task) {
+
+		if (task.childAnimal.getGrowingAge() >= 0) {
+			return false;
+		} else {
+			if (task.parentAnimal != null && task.parentAnimal.isEntityAlive()) {
+				double dist = task.childAnimal.getDistanceSqToEntity(task.parentAnimal);
+				if (dist <= 256)
+					return true;
+			}
+			if (--task.field_75345_d > 0) {
+				return false;
+			}
+			List<? extends EntityAnimal> list = task.childAnimal.worldObj.getEntitiesWithinAABB(task.childAnimal.getClass(),
+				task.childAnimal.boundingBox.expand(8.0D, 4.0D, 8.0D));
+			EntityAnimal entityanimal = null;
+			double d0 = Double.MAX_VALUE;
+
+			for (EntityAnimal entityanimal1 : list) {
+
+				if (entityanimal1.getGrowingAge() >= 0) {
+					double d1 = task.childAnimal.getDistanceSqToEntity(entityanimal1);
+
+					if (d1 <= d0) {
+						d0 = d1;
+						entityanimal = entityanimal1;
+					}
+				}
+			}
+
+			if (entityanimal == null) {
+				task.field_75345_d = 100;
+				return false;
+			} else if (d0 < 9.0D) {
+				return false;
+			} else {
+				task.parentAnimal = entityanimal;
+				return true;
+			}
+		}
 	}
 
 	public static int computeLightValue(World world, Chunk chunk, int x, int y, int z, EnumSkyBlock type) {
@@ -190,7 +246,8 @@ public class HooksCore {
 
 										if (computedLight == savedLight - opacity && arrayEnd < lightUpdateBlockList.length) {
 											if (k4 >= 0 && k4 <= 255) {
-												lightUpdateBlockList[arrayEnd++] = (j4 - x + 32) | ((k4 - y + 32) << 6) | ((l4 - z + 32) << 12) | ((savedLight - opacity) << 18);
+												lightUpdateBlockList[arrayEnd++] = (j4 - x + 32) | ((k4 - y + 32) << 6) | ((l4 - z + 32) << 12) |
+														((savedLight - opacity) << 18);
 											}
 										}
 									}
@@ -320,36 +377,56 @@ public class HooksCore {
 	@SuppressWarnings("unchecked")
 	private static List<AxisAlignedBB> getBlockCollisionBoxes(World world, Entity entity, AxisAlignedBB bb) {
 
+		world.theProfiler.startSection("blockCollision");
 		List<AxisAlignedBB> collidingBoundingBoxes = world.collidingBoundingBoxes;
 		if (collidingBoundingBoxes == null) {
 			collidingBoundingBoxes = world.collidingBoundingBoxes = new ArrayList<AxisAlignedBB>();
 		}
 		collidingBoundingBoxes.clear();
 		int i = MathHelper.floor_double(bb.minX);
-		int j = MathHelper.floor_double(bb.maxX + 1.0D);
-		int k = MathHelper.floor_double(bb.minY);
-		int l = MathHelper.floor_double(bb.maxY + 1.0D);
+		int j = MathHelper.floor_double(bb.maxX) + 1;
 		int i1 = MathHelper.floor_double(bb.minZ);
-		int j1 = MathHelper.floor_double(bb.maxZ + 1.0D);
+		int j1 = MathHelper.floor_double(bb.maxZ) + 1;
+		int k = MathHelper.floor_double(bb.minY) - 1;
+		int l = MathHelper.floor_double(bb.maxY) + 1;
+		{
+			k &= ~k >> 31;
+			;
+			k -= 255;
+			k &= k >> 31;
+			;
+			k += 255;
+			l &= ~l >> 31;
+			;
+			l -= 255;
+			l &= l >> 31;
+			;
+			l += 255;
+		}
 
-		for (int x = i; x < j; ++x) {
-			boolean xBound = x >= -30000000 & x < 30000000;
-			for (int z = i1; z < j1; ++z) {
-				boolean def = xBound & z >= -30000000 & z < 30000000;
-				if (!world.blockExists(x, 64, z)) {
-					continue;
-				}
-				if (def) {
-					for (int y = k - 1; y < l; ++y) {
-						world.getBlock(x, y, z).addCollisionBoxesToList(world, x, y, z, bb, collidingBoundingBoxes, entity);
+		if (k != l) {
+			for (int x = i; x < j; ++x) {
+				boolean xBound = x >= -30000000 & x < 30000000;
+				for (int z = i1; z < j1; ++z) {
+					boolean def = xBound & z >= -30000000 & z < 30000000;
+					if (!world.blockExists(x, 64, z)) {
+						continue;
 					}
-				} else {
-					for (int y = k - 1; y < l; ++y) {
-						Blocks.bedrock.addCollisionBoxesToList(world, x, y, z, bb, collidingBoundingBoxes, entity);
+					if (def) {
+						Chunk chunk = world.getChunkFromBlockCoords(x, z);
+						int cX = x & 15, cZ = z & 15;
+						for (int y = k; y < l; ++y) {
+							chunk.getBlock(cX, y, cZ).addCollisionBoxesToList(world, x, y, z, bb, collidingBoundingBoxes, entity);
+						}
+					} else {
+						for (int y = k; y < l; ++y) {
+							Blocks.bedrock.addCollisionBoxesToList(world, x, y, z, bb, collidingBoundingBoxes, entity);
+						}
 					}
 				}
 			}
 		}
+		world.theProfiler.endSection();
 
 		return collidingBoundingBoxes;
 	}
@@ -372,6 +449,7 @@ public class HooksCore {
 
 		List<AxisAlignedBB> collidingBoundingBoxes = getBlockCollisionBoxes(world, entity, bb);
 
+		world.theProfiler.startSection("entity_on_entity_collision");
 		AxisAlignedBB bb2 = bb.expand(.25, .25, .25);
 		int x = MathHelper.floor_double((bb2.minX - World.MAX_ENTITY_RADIUS) * 0.0625);
 		int xE = MathHelper.floor_double((bb2.maxX + World.MAX_ENTITY_RADIUS) * 0.0625);
@@ -429,6 +507,7 @@ public class HooksCore {
 					}
 				}
 			}
+		world.theProfiler.endSection();
 
 		return collidingBoundingBoxes;
 	}

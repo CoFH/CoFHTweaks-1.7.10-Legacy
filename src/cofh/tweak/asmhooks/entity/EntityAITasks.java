@@ -15,7 +15,7 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 		super(p_i1628_1_);
 		executingTaskEntries = new IdentityArrayHashList<EntityAITaskEntry>();
 		if (Config.agressiveAICulling)
-			tickRate = 10;
+			tickRate += 10;
 	}
 
     ArrayList<EntityAITaskEntry> taskEntriesToStart = new ArrayList<EntityAITaskEntry>();
@@ -42,13 +42,22 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
                         continue;
                     }
 
+                    this.theProfiler.startSection("reset");
                     entityaitaskentry.action.resetTask();
+                	this.theProfiler.endStartSection("should_execute");
                     if (!entityaitaskentry.action.shouldExecute())
                     	this.executingTaskEntries.remove(entityaitaskentry);
                     else
                     	taskEntriesToStart.add(entityaitaskentry);
+                    this.theProfiler.endSection();
                 } else {
-	                if (this.canUse(entityaitaskentry) && entityaitaskentry.action.shouldExecute()) {
+	                l: if (this.canUse(entityaitaskentry)) {
+	                	this.theProfiler.startSection("should_execute");
+	                	if (!entityaitaskentry.action.shouldExecute()) {
+	                		this.theProfiler.endSection();
+	                		break l;
+	                	}
+	                	this.theProfiler.endSection();
 	                    taskEntriesToStart.add(entityaitaskentry);
 	                    this.executingTaskEntries.add(entityaitaskentry);
 	                }
