@@ -1,6 +1,7 @@
 package cofh.tweak.asmhooks;
 
 import cofh.tweak.CoFHTweaks;
+import cofh.tweak.util.ClassInheritenceArrayList;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
@@ -15,6 +16,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.renderer.texture.ITickable;
+import net.minecraft.command.IEntitySelector;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ai.EntityAIFollowParent;
 import net.minecraft.entity.item.EntityItem;
@@ -371,6 +373,42 @@ public class HooksCore {
 
 		while (iterator.hasNext()) {
 			entity.combineItems((EntityItem) iterator.next());
+		}
+	}
+
+	public static void getEntities(Chunk chunk, Class<?> clazz, AxisAlignedBB aabb, List<Entity> out, IEntitySelector selector) {
+
+		if (!chunk.hasEntities)
+			return;
+
+		int start = MathHelper.floor_double((aabb.minY - World.MAX_ENTITY_RADIUS) / 16.0D);
+		int end = MathHelper.floor_double((aabb.maxY + World.MAX_ENTITY_RADIUS) / 16.0D);
+		start = MathHelper.clamp_int(start, 0, chunk.entityLists.length - 1);
+		end = MathHelper.clamp_int(end, 0, chunk.entityLists.length - 1);
+
+		for (int i = start; i <= end; ++i) {
+			@SuppressWarnings("unchecked")
+			List<Entity> list1 = chunk.entityLists[i];
+
+			if (list1.getClass() == ClassInheritenceArrayList.class) {
+				Iterator<? extends Entity> iter = ((ClassInheritenceArrayList<Entity>) list1).getIteratorFor(clazz);
+				if (iter != null) while (iter.hasNext()) {
+					Entity entity = iter.next();
+					if (entity.boundingBox.intersectsWith(aabb) && (selector == null || selector.isEntityApplicable(entity))) {
+						out.add(entity);
+					}
+				}
+				continue;
+			}
+
+			// compat with things that break our logic
+			for (int k = 0; k < list1.size(); ++k) {
+				Entity entity = list1.get(k);
+
+				if (clazz.isAssignableFrom(entity.getClass()) && entity.boundingBox.intersectsWith(aabb) && (selector == null || selector.isEntityApplicable(entity))) {
+					out.add(entity);
+				}
+			}
 		}
 	}
 

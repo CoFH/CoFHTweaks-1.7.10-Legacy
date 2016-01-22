@@ -3,7 +3,8 @@ package cofh.tweak.asmhooks.entity;
 import cofh.tweak.asmhooks.Config;
 import cofh.tweak.util.IdentityArrayHashList;
 
-import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.List;
 
 import net.minecraft.profiler.Profiler;
 import net.minecraft.server.MinecraftServer;
@@ -18,125 +19,129 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 			tickRate += 10;
 	}
 
-    ArrayList<EntityAITaskEntry> taskEntriesToStart = new ArrayList<EntityAITaskEntry>();
+	ArrayDeque<EntityAITaskEntry> taskEntriesToStart = new ArrayDeque<EntityAITaskEntry>();
 
-    @Override
+	@Override
 	public void onUpdateTasks() {
 
-        this.theProfiler.startSection("processing");
-        EntityAITaskEntry entityaitaskentry;
+		Profiler theProfiler = this.theProfiler;
+		List<EntityAITaskEntry> executingTaskEntries = this.executingTaskEntries;
+		theProfiler.startSection("processing");
+		EntityAITaskEntry entityaitaskentry;
 
-        if (this.tickCount++ % this.tickRate == 0) {
-            this.theProfiler.startSection("full");
+		if (this.tickCount++ % this.tickRate == 0) {
+			theProfiler.startSection("full");
 
-            for (int i = 0, e = this.taskEntries.size(); i < e; ++i) {
-                entityaitaskentry = (EntityAITaskEntry) this.taskEntries.get(i);
-                String name = this.theProfiler.profilingEnabled ? entityaitaskentry.action.getClass().getSimpleName() : "$";
-                this.theProfiler.startSection(name);
+			for (int i = 0, e = this.taskEntries.size(); i < e; ++i) {
+				entityaitaskentry = (EntityAITaskEntry) this.taskEntries.get(i);
+				String name = theProfiler.profilingEnabled ? entityaitaskentry.action.getClass().getSimpleName() : "$";
+				theProfiler.startSection(name);
 
-                boolean flag = this.executingTaskEntries.contains(entityaitaskentry);
+				boolean flag = executingTaskEntries.contains(entityaitaskentry);
 
-                if (flag) {
-                    if (this.canContinue(entityaitaskentry) && this.canUse(entityaitaskentry)) {
-                        this.theProfiler.endSection();
-                        continue;
-                    }
+				if (flag) {
+					if (this.canContinue(entityaitaskentry) && this.canUse(entityaitaskentry)) {
+						theProfiler.endSection();
+						continue;
+					}
 
-                    this.theProfiler.startSection("reset");
-                    entityaitaskentry.action.resetTask();
-                	this.theProfiler.endStartSection("should_execute");
-                    if (!entityaitaskentry.action.shouldExecute())
-                    	this.executingTaskEntries.remove(entityaitaskentry);
-                    else
-                    	taskEntriesToStart.add(entityaitaskentry);
-                    this.theProfiler.endSection();
-                } else {
-	                l: if (this.canUse(entityaitaskentry)) {
-	                	this.theProfiler.startSection("should_execute");
-	                	if (!entityaitaskentry.action.shouldExecute()) {
-	                		this.theProfiler.endSection();
-	                		break l;
-	                	}
-	                	this.theProfiler.endSection();
-	                    taskEntriesToStart.add(entityaitaskentry);
-	                    this.executingTaskEntries.add(entityaitaskentry);
-	                }
-                }
-                this.theProfiler.endSection();
-            }
-            this.theProfiler.endSection();
-        }
-        else
-        {
-        	if (Config.agressiveAICulling && MinecraftServer.getServer() != null) {
-        		long[] data = MinecraftServer.getServer().tickTimeArray;
-        		int t = (MinecraftServer.getServer().getTickCounter() % 100) - 1;
-        		if (t < 0) t = data.length - 1;
-        		long p = data[t];
-        		if (p > 40000000L) return;
-        	}
-            this.theProfiler.startSection("tick");
+					theProfiler.startSection("reset");
+					entityaitaskentry.action.resetTask();
+					theProfiler.endStartSection("should_execute");
+					if (!entityaitaskentry.action.shouldExecute())
+						executingTaskEntries.remove(entityaitaskentry);
+					else
+						taskEntriesToStart.add(entityaitaskentry);
+					theProfiler.endSection();
+				} else {
+					l: if (this.canUse(entityaitaskentry)) {
+						theProfiler.startSection("should_execute");
+						if (!entityaitaskentry.action.shouldExecute()) {
+							theProfiler.endSection();
+							break l;
+						}
+						theProfiler.endSection();
+						taskEntriesToStart.add(entityaitaskentry);
+						executingTaskEntries.add(entityaitaskentry);
+					}
+				}
+				theProfiler.endSection();
+			}
+			theProfiler.endSection();
+		}
+		else
+		{
+			if (Config.agressiveAICulling && MinecraftServer.getServer() != null) {
+				long[] data = MinecraftServer.getServer().tickTimeArray;
+				int t = (MinecraftServer.getServer().getTickCounter() % 100) - 1;
+				if (t < 0) t = data.length - 1;
+				long p = data[t];
+				if (p > 40000000L) return;
+			}
+			theProfiler.startSection("tick");
 
-            for (int i = 0, e = this.executingTaskEntries.size(); i < e; ++i) {
-                entityaitaskentry = (EntityAITaskEntry) this.executingTaskEntries.get(i);
+			for (int i = 0, e = executingTaskEntries.size(); i < e; ++i) {
+				entityaitaskentry = executingTaskEntries.get(i);
+				String name = theProfiler.profilingEnabled ? entityaitaskentry.action.getClass().getSimpleName() : "$";
+				theProfiler.startSection(name);
 
-                if (!entityaitaskentry.action.continueExecuting()) {
-                    entityaitaskentry.action.resetTask();
-                    executingTaskEntries.remove(i);
-                    --i;
-                    --e;
-                }
-            }
-            this.theProfiler.endSection();
-        }
-        this.theProfiler.endSection();
+				if (!entityaitaskentry.action.continueExecuting()) {
+					entityaitaskentry.action.resetTask();
+					executingTaskEntries.remove(i);
+					--i;
+					--e;
+				}
+				theProfiler.endSection();
+			}
+			theProfiler.endSection();
+		}
+		theProfiler.endSection();
 
-        this.theProfiler.startSection("goalStart");
+		theProfiler.startSection("goalStart");
 
-        for (int i = 0, e = taskEntriesToStart.size(); i < e; ++i) {
-            entityaitaskentry = taskEntriesToStart.get(i);
-            String name = this.theProfiler.profilingEnabled ? entityaitaskentry.action.getClass().getSimpleName() : "$";
-            this.theProfiler.startSection(name);
-            entityaitaskentry.action.startExecuting();
-            this.theProfiler.endSection();
-        }
-        taskEntriesToStart.clear();
+		for (int i = 0, e = taskEntriesToStart.size(); i < e; ++i) {
+			entityaitaskentry = taskEntriesToStart.poll();
+			String name = theProfiler.profilingEnabled ? entityaitaskentry.action.getClass().getSimpleName() : "$";
+			theProfiler.startSection(name);
+			entityaitaskentry.action.startExecuting();
+			theProfiler.endSection();
+		}
 
-        this.theProfiler.endSection();
-        this.theProfiler.startSection("goalTick");
+		theProfiler.endSection();
+		theProfiler.startSection("goalTick");
 
-        for (int i = 0, e = this.executingTaskEntries.size(); i < e; ++i) {
-            entityaitaskentry = (EntityAITaskEntry) this.executingTaskEntries.get(i);
-            entityaitaskentry.action.updateTask();
-        }
+		for (int i = 0, e = executingTaskEntries.size(); i < e; ++i) {
+			entityaitaskentry = executingTaskEntries.get(i);
+			entityaitaskentry.action.updateTask();
+		}
 
-        this.theProfiler.endSection();
-    }
+		theProfiler.endSection();
+	}
 
-    @Override
+	@Override
 	protected boolean canUse(EntityAITaskEntry task) {
 
-        this.theProfiler.startSection("canUse");
+		this.theProfiler.startSection("canUse");
 
-        for (int i = 0, e = this.taskEntries.size(); i < e; ++i) {
-            EntityAITaskEntry entityaitaskentry = (EntityAITaskEntry)this.taskEntries.get(i);
+		for (int i = 0, e = this.taskEntries.size(); i < e; ++i) {
+			EntityAITaskEntry entityaitaskentry = (EntityAITaskEntry) this.taskEntries.get(i);
 
-            if (entityaitaskentry != task) {
-                if (task.priority >= entityaitaskentry.priority) {
-                    if (!this.areTasksCompatible(task, entityaitaskentry) && this.executingTaskEntries.contains(entityaitaskentry)) {
-                        this.theProfiler.endSection();
-                        return false;
-                    }
-                }
-                else if (!entityaitaskentry.action.isInterruptible() && this.executingTaskEntries.contains(entityaitaskentry)) {
-                    this.theProfiler.endSection();
-                    return false;
-                }
-            }
-        }
+			if (entityaitaskentry != task) {
+				if (task.priority >= entityaitaskentry.priority) {
+					if (!this.areTasksCompatible(task, entityaitaskentry) && this.executingTaskEntries.contains(entityaitaskentry)) {
+						this.theProfiler.endSection();
+						return false;
+					}
+				}
+				else if (!entityaitaskentry.action.isInterruptible() && this.executingTaskEntries.contains(entityaitaskentry)) {
+					this.theProfiler.endSection();
+					return false;
+				}
+			}
+		}
 
-        this.theProfiler.endSection();
-        return true;
-    }
+		this.theProfiler.endSection();
+		return true;
+	}
 
 }

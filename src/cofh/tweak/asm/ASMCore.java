@@ -722,9 +722,9 @@ class ASMCore {
 
 		String[] names;
 		if (LoadingPlugin.runtimeDeobfEnabled) {
-			names = new String[] { "func_150803_c", "field_76650_s" };
+			names = new String[] { "func_150803_c", "field_76650_s", "func_76618_a" };
 		} else {
-			names = new String[] { "recheckGaps", "isGapLightingUpdated" };
+			names = new String[] { "recheckGaps", "isGapLightingUpdated", "getEntitiesOfTypeWithinAAAB" };
 		}
 
 		name = name.replace('.', '/');
@@ -733,6 +733,7 @@ class ASMCore {
 
 		l: {
 			boolean updated = false;
+			final String sig = "(Lnet/minecraft/world/chunk/Chunk;Ljava/lang/Class;Lnet/minecraft/util/AxisAlignedBB;Ljava/util/List;Lnet/minecraft/command/IEntitySelector;)V";
 			for (MethodNode m : cn.methods) {
 				String mName = m.name;
 				if (names[0].equals(mName) && "(Z)V".equals(m.desc)) {
@@ -746,6 +747,33 @@ class ASMCore {
 							break;
 						}
 					}
+				} else if ("<init>".equals(mName)) {
+					for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n == null ? null : n.getNext()) {
+						if (n.getOpcode() == NEW) {
+							if ("java/util/ArrayList".equals(((TypeInsnNode) n).desc)) {
+								updated = true;
+								((TypeInsnNode) n).desc = "cofh/tweak/util/ClassInheritenceArrayList";
+								for (; n != null; n = n.getNext()) {
+									if (n.getOpcode() == INVOKESPECIAL) {
+										((MethodInsnNode) n).owner = "cofh/tweak/util/ClassInheritenceArrayList";
+										break;
+									}
+								}
+							}
+						}
+					}
+				} else if (names[2].equals(mName)) {
+					updated = true;
+					m.localVariables = null;
+
+					m.instructions.clear();
+					m.instructions.add(new VarInsnNode(ALOAD, 0));
+					m.instructions.add(new VarInsnNode(ALOAD, 1));
+					m.instructions.add(new VarInsnNode(ALOAD, 2));
+					m.instructions.add(new VarInsnNode(ALOAD, 3));
+					m.instructions.add(new VarInsnNode(ALOAD, 4));
+					m.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "getEntities", sig, false));
+					m.instructions.add(new InsnNode(RETURN));
 				}
 			}
 
