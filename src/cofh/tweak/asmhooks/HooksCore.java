@@ -88,8 +88,6 @@ public class HooksCore {
 			if (entityanimal == null) {
 				task.field_75345_d = 100;
 				return false;
-			} else if (d0 < 9.0D) {
-				return false;
 			} else {
 				task.parentAnimal = entityanimal;
 				return true;
