@@ -268,7 +268,7 @@
 	
 	<target name="setup-bon" depends="properties" unless="bon.exists">
 		<echo message="Downloading BON..."/>
-		<get src="https://github.com/skyboy/bearded-octo-nemesis/releases/download/1.3/BON.jar" dest="${reobf.cmd}"/>
+		<get src="https://github.com/skyboy/bearded-octo-nemesis/releases/download/1.4/BON.jar" dest="${reobf.cmd}"/>
 	</target>
 	
 	<target name="upload" depends="build" if="CF_API_TOKEN">
