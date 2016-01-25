@@ -24,6 +24,76 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 	@Override
 	public void onUpdateTasks() {
 
+		if (theProfiler.profilingEnabled) {
+			onUpdateTasksDebug();
+			return;
+		}
+		List<EntityAITaskEntry> executingTaskEntries = this.executingTaskEntries;
+		EntityAITaskEntry entityaitaskentry;
+
+		if (this.tickCount++ % this.tickRate == 0) {
+
+			for (int i = 0, e = this.taskEntries.size(); i < e; ++i) {
+				entityaitaskentry = (EntityAITaskEntry) this.taskEntries.get(i);
+
+				boolean flag = executingTaskEntries.contains(entityaitaskentry);
+
+				if (flag) {
+					if (this.canContinue(entityaitaskentry) && this.canUse(entityaitaskentry)) {
+						continue;
+					}
+
+					entityaitaskentry.action.resetTask();
+					if (!entityaitaskentry.action.shouldExecute())
+						executingTaskEntries.remove(entityaitaskentry);
+					else
+						taskEntriesToStart.add(entityaitaskentry);
+				} else {
+					l: if (this.canUse(entityaitaskentry)) {
+						if (!entityaitaskentry.action.shouldExecute()) {
+							break l;
+						}
+						taskEntriesToStart.add(entityaitaskentry);
+						executingTaskEntries.add(entityaitaskentry);
+					}
+				}
+			}
+		}
+		else
+		{
+			if (Config.agressiveAICulling && MinecraftServer.getServer() != null) {
+				long[] data = MinecraftServer.getServer().tickTimeArray;
+				int t = (MinecraftServer.getServer().getTickCounter() % 100) - 1;
+				if (t < 0) t = data.length - 1;
+				long p = data[t];
+				if (p > 40000000L) return;
+			}
+
+			for (int i = 0, e = executingTaskEntries.size(); i < e; ++i) {
+				entityaitaskentry = executingTaskEntries.get(i);
+
+				if (!entityaitaskentry.action.continueExecuting()) {
+					entityaitaskentry.action.resetTask();
+					executingTaskEntries.remove(i);
+					--i;
+					--e;
+				}
+			}
+		}
+
+		for (int i = 0, e = taskEntriesToStart.size(); i < e; ++i) {
+			entityaitaskentry = taskEntriesToStart.poll();
+			entityaitaskentry.action.startExecuting();
+		}
+
+		for (int i = 0, e = executingTaskEntries.size(); i < e; ++i) {
+			entityaitaskentry = executingTaskEntries.get(i);
+			entityaitaskentry.action.updateTask();
+		}
+	}
+
+	public void onUpdateTasksDebug() {
+
 		Profiler theProfiler = this.theProfiler;
 		List<EntityAITaskEntry> executingTaskEntries = this.executingTaskEntries;
 		theProfiler.startSection("processing");
@@ -34,7 +104,7 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 
 			for (int i = 0, e = this.taskEntries.size(); i < e; ++i) {
 				entityaitaskentry = (EntityAITaskEntry) this.taskEntries.get(i);
-				String name = theProfiler.profilingEnabled ? entityaitaskentry.action.getClass().getSimpleName() : "$";
+				String name = entityaitaskentry.action.getClass().getSimpleName();
 				theProfiler.startSection(name);
 
 				boolean flag = executingTaskEntries.contains(entityaitaskentry);
@@ -82,7 +152,7 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 
 			for (int i = 0, e = executingTaskEntries.size(); i < e; ++i) {
 				entityaitaskentry = executingTaskEntries.get(i);
-				String name = theProfiler.profilingEnabled ? entityaitaskentry.action.getClass().getSimpleName() : "$";
+				String name = entityaitaskentry.action.getClass().getSimpleName();
 				theProfiler.startSection(name);
 
 				if (!entityaitaskentry.action.continueExecuting()) {
@@ -101,7 +171,7 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 
 		for (int i = 0, e = taskEntriesToStart.size(); i < e; ++i) {
 			entityaitaskentry = taskEntriesToStart.poll();
-			String name = theProfiler.profilingEnabled ? entityaitaskentry.action.getClass().getSimpleName() : "$";
+			String name = entityaitaskentry.action.getClass().getSimpleName();
 			theProfiler.startSection(name);
 			entityaitaskentry.action.startExecuting();
 			theProfiler.endSection();
