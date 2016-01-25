@@ -54,7 +54,7 @@ public class Config {
 		comment = "If true, EntityItems will attempt to stack in-world. This overrides the setting in CoFHCore.";
 		(tag = config.getTag("StackItems")).setComment(comment);
 		stackItems = tag.getBooleanValue(stackItems);
-		comment = "If true, Entities will attempt to collide/push with each other.";
+		comment = "If true, Entities will attempt to collide/push with each other while moving.";
 		(tag = config.getTag("EntityCollisions")).setComment(comment);
 		collideEntities = tag.getBooleanValue(collideEntities);
 		comment = "If true, the client will perform in-depth lighting on chunks and the server will redundantly update lighting near players.";

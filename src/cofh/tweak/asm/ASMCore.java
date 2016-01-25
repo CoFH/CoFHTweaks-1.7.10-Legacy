@@ -60,6 +60,7 @@ class ASMCore {
 		hashes.put("net.minecraft.entity.passive.EntitySquid", (byte) 12);
 		hashes.put("net.minecraft.entity.passive.EntityWaterMob", (byte) 13);
 		hashes.put("net.minecraft.entity.ai.EntityAIFollowParent", (byte) 14);
+		hashes.put("net.minecraft.network.NetHandlerPlayServer", (byte) 15);
 	}
 
 	static byte[] transform(int index, String name, String transformedName, byte[] bytes) {
@@ -95,10 +96,68 @@ class ASMCore {
 			return alterWaterMob(transformedName, bytes, cr);
 		case 14:
 			return alterFollowParent(transformedName, bytes, cr);
+		case 15:
+			return fixNetHandlerPlayServer(transformedName, bytes, cr);
 
 		default:
 			return bytes;
 		}
+	}
+
+	private static byte[] fixNetHandlerPlayServer(String name, byte[] bytes, ClassReader cr) {
+
+		String[] names;
+		if (LoadingPlugin.runtimeDeobfEnabled) {
+			names = new String[] { "func_147233_a", "func_76319_b", "func_76320_a" };
+		} else {
+			names = new String[] { "onNetworkTick", "endSection", "startSection" };
+		}
+
+		ClassNode cn = new ClassNode(ASM5);
+		cr.accept(cn, 0);
+
+		l: for (MethodNode m : cn.methods) {
+			if (names[0].equals(m.name)) {
+				InsnList getProfiler = new InsnList();
+				for (int i = 0, e = m.instructions.size(); i < e; ++i) {
+					AbstractInsnNode n = m.instructions.get(i);
+					c: if (n.getOpcode() == INVOKEVIRTUAL) {
+						MethodInsnNode mn = (MethodInsnNode) n;
+						if (!"net/minecraft/profiler/Profiler".equals(mn.owner)) {
+							break c;
+						}
+						if (names[1].equals(mn.name)) {
+							break l;
+						} else if (names[2].equals(mn.name) && getProfiler.size() == 0) {
+							for (n = n.getPrevious().getPrevious(); n.getOpcode() != ALOAD; n = n.getPrevious()) {
+								getProfiler.insert(n.clone(null));
+							}
+							getProfiler.insert(n.clone(null));
+						}
+					}
+				}
+
+				if (getProfiler.size() == 0) {
+					break l;
+				}
+				getProfiler.add(new MethodInsnNode(INVOKEVIRTUAL, "net/minecraft/profiler/Profiler", names[1], "()V", false));
+
+				for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+					if (n.getOpcode() == RETURN) {
+						for (AbstractInsnNode o = getProfiler.getFirst(); o != null; o = o.getNext()) {
+							m.instructions.insertBefore(n, o.clone(null));
+						}
+					}
+				}
+				break l;
+			}
+		}
+
+		ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+		cn.accept(cw);
+		bytes = cw.toByteArray();
+
+		return bytes;
 	}
 
 	private static byte[] alterWorld(String name, byte[] bytes, ClassReader cr) {
@@ -535,26 +594,29 @@ class ASMCore {
 
 		String[] names;
 		if (LoadingPlugin.runtimeDeobfEnabled) {
-			names = new String[] { "<init>", "func_70692_ba", "field_70173_aa" };
+			names = new String[] { "<init>", "func_70692_ba", "field_70173_aa", "func_70623_bb", "field_70708_bq" };
 		} else {
-			names = new String[] { "<init>", "canDespawn", "ticksExisted" };
+			names = new String[] { "<init>", "canDespawn", "ticksExisted", "despawnEntity", "entityAge" };
 		}
 
 		ClassNode cn = new ClassNode(ASM5);
 		cr.accept(cn, 0);
 
-		MethodNode m = null;
+		MethodNode init = null;
 		MethodNode canDespawn = null;
+		MethodNode despawnEntity = null;
 		for (MethodNode n : cn.methods) {
 			if (names[0].equals(n.name)) {
-				m = n;
+				init = n;
 			} else if (names[1].equals(n.name)) {
 				canDespawn = n;
+			} else if (names[3].equals(n.name)) {
+				despawnEntity = n;
 			}
 		}
 
-		if (m != null) {
-			for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+		if (init != null) {
+			for (AbstractInsnNode n = init.instructions.getFirst(); n != null; n = n.getNext()) {
 				if (n.getOpcode() == NEW) {
 					TypeInsnNode node = ((TypeInsnNode) n);
 					if (!"net/minecraft/entity/ai/EntityAITasks".equals(node.desc))
@@ -584,6 +646,38 @@ class ASMCore {
 			canDespawn.instructions.clear();
 			canDespawn.localVariables = null;
 			canDespawn.instructions.insert(list);
+		}
+
+		if (despawnEntity != null) {
+			InsnList list = new InsnList();
+			LabelNode label = new LabelNode();
+			list.add(new VarInsnNode(ALOAD, 0));
+			list.add(new FieldInsnNode(GETFIELD, "net/minecraft/entity/EntityLivingBase", names[4], "I"));
+			list.add(new LdcInsnNode(new Integer(0x1F)));
+			list.add(new InsnNode(IAND));
+			list.add(new LdcInsnNode(new Integer(0x1E)));
+			list.add(new JumpInsnNode(IF_ICMPEQ, label));
+			list.add(new InsnNode(RETURN));
+			list.add(new FrameNode(F_SAME, 0, null, 0, null));
+			list.add(label);
+
+			despawnEntity.localVariables = null;
+			for (AbstractInsnNode n = despawnEntity.instructions.getFirst(); n != null; n = n.getNext()) {
+				c: if (n.getOpcode() == INVOKEVIRTUAL) {
+					MethodInsnNode m = (MethodInsnNode) n;
+					if (!"net/minecraft/world/World".equals(m.owner)) {
+						break c;
+					}
+					if (!"(Lnet/minecraft/entity/Entity;D)Lnet/minecraft/entity/player/EntityPlayer;".equals(m.desc)) {
+						break c;
+					}
+					for (; n != null && n.getType() != AbstractInsnNode.LABEL; n = n.getPrevious());
+					for (; n != null && n.getOpcode() != ALOAD; n = n.getNext());
+					if (n != null)
+						despawnEntity.instructions.insertBefore(n, list);
+					break;
+				}
+			}
 		}
 
 		ClassWriter cw = new ClassWriter(0);
@@ -722,9 +816,9 @@ class ASMCore {
 
 		String[] names;
 		if (LoadingPlugin.runtimeDeobfEnabled) {
-			names = new String[] { "func_150803_c", "field_76650_s", "func_76618_a" };
+			names = new String[] { "func_150803_c", "field_76650_s", "func_76618_a", "func_76588_a", "field_76644_m" };
 		} else {
-			names = new String[] { "recheckGaps", "isGapLightingUpdated", "getEntitiesOfTypeWithinAAAB" };
+			names = new String[] { "recheckGaps", "isGapLightingUpdated", "getEntitiesOfTypeWithinAAAB", "getEntitiesWithinAABBForEntity", "hasEntities" };
 		}
 
 		name = name.replace('.', '/');
@@ -774,6 +868,19 @@ class ASMCore {
 					m.instructions.add(new VarInsnNode(ALOAD, 4));
 					m.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "getEntities", sig, false));
 					m.instructions.add(new InsnNode(RETURN));
+				} else if (names[3].equals(mName)) {
+					updated = true;
+					m.localVariables = null;
+
+					InsnList list = new InsnList();
+					LabelNode label = new LabelNode();
+					list.add(new VarInsnNode(ALOAD, 0));
+					list.add(new FieldInsnNode(GETFIELD, "net/minecraft/world/chunk/Chunk", names[4], "Z"));
+					list.add(new JumpInsnNode(IFNE, label));
+					list.add(new InsnNode(RETURN));
+					list.add(new FrameNode(F_SAME, 0, null, 0, null));
+					list.add(label);
+					m.instructions.insert(list);
 				}
 			}
 
