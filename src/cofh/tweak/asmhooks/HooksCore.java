@@ -177,7 +177,7 @@ public class HooksCore {
 			int arrayRead = 0, arrayEnd = 0;
 
 			Chunk chunk = chunks[((z >> 4) - chunkZ) * chunkWidth + ((x >> 4) - chunkX)];
-			if (chunk == null) {
+			if (chunk == null | y < 0 | y > 255) {
 				return false;
 			}
 			int savedLight = chunk.getSavedLightValue(type, x & 15, y, z & 15);
@@ -202,6 +202,11 @@ public class HooksCore {
 					savedLight = posLight >> 18 & 15;
 					int x2 = xO & 15, z2 = zO & 15;
 
+					chunk = chunks[((zO >> 4) - chunkZ) * chunkWidth + ((xO >> 4) - chunkX)];
+					if (chunk == null | yO < 0 | yO > 255) {
+						continue;
+					}
+
 					{
 						int t;
 						minX = xO + ((t = minX - xO) & (t >> 31));
@@ -210,11 +215,6 @@ public class HooksCore {
 						maxX = maxX - ((t = maxX - xO) & (t >> 31));
 						maxY = maxY - ((t = maxY - yO) & (t >> 31));
 						maxZ = maxZ - ((t = maxZ - zO) & (t >> 31));
-					}
-
-					chunk = chunks[((zO >> 4) - chunkZ) * chunkWidth + ((xO >> 4) - chunkX)];
-					if (chunk == null) {
-						continue;
 					}
 					computedLight = chunk.getSavedLightValue(type, x2, yO, z2);
 
@@ -286,6 +286,11 @@ public class HooksCore {
 				zO = (posLight >> 12 & 63) - 32 + z;
 				int x2 = xO & 15, z2 = zO & 15;
 
+				chunk = chunks[((zO >> 4) - chunkZ) * chunkWidth + ((xO >> 4) - chunkX)];
+				if (chunk == null | yO < 0 | yO > 255) {
+					continue;
+				}
+
 				{
 					int t;
 					minX = xO + ((t = minX - xO) & (t >> 31));
@@ -294,11 +299,6 @@ public class HooksCore {
 					maxX = maxX - ((t = maxX - xO) & (t >> 31));
 					maxY = maxY - ((t = maxY - yO) & (t >> 31));
 					maxZ = maxZ - ((t = maxZ - zO) & (t >> 31));
-				}
-
-				chunk = chunks[((zO >> 4) - chunkZ) * chunkWidth + ((xO >> 4) - chunkX)];
-				if (chunk == null) {
-					continue;
 				}
 				savedLight = chunk.getSavedLightValue(type, x2, yO, z2);
 				computedLight = computeLightValue(world, chunk, xO, yO, zO, type);
