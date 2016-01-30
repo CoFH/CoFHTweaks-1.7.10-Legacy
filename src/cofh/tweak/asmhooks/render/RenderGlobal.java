@@ -122,23 +122,17 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		theWorld.theProfiler.endStartSection("rebuild");
 		int lim = worldRenderersToUpdate.size() + workerWorldRenderers.size();
-		boolean freeTime = true;
 		if (lim > 0) {
-			freeTime = rebuildChunks(view, lim, System.nanoTime());
+			rebuildChunks(view, lim, System.nanoTime());
 		}
 
 		theWorld.theProfiler.endStartSection("scan");
 		int yaw = MathHelper.floor_float(view.rotationYaw + 45) >> 4;
 		int pitch = MathHelper.floor_float(view.rotationPitch + 45) >> 4;
 		if (worker.dirty || yaw != prevRotationYaw || pitch != prevRotationPitch) {
-			lim = worldRenderersToUpdate.size() + workerWorldRenderers.size();
 			worker.run(true);
 			prevRotationYaw = yaw;
 			prevRotationPitch = pitch;
-			if (freeTime && lim < (lim = worldRenderersToUpdate.size() + workerWorldRenderers.size())) {
-				theWorld.theProfiler.endStartSection("rebuild");
-				rebuildChunks(view, lim, System.nanoTime() + (2500000L >> 1));
-			}
 		}
 		theWorld.theProfiler.endSection();
 		return true;
@@ -165,8 +159,9 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 				continue;
 			}
 
+			boolean e = worldrenderer.isWaitingOnOcclusionQuery;
 			worldrenderer.updateRenderer(view);
-			worldrenderer.isVisible = false;
+			worldrenderer.isVisible &= !e;
 			worldrenderer.isWaitingOnOcclusionQuery = worldrenderer.skipAllRenderPasses();
 			// can't add fields, re-use
 
