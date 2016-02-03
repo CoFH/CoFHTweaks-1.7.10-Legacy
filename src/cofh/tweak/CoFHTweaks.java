@@ -7,7 +7,7 @@ import cpw.mods.fml.common.LoaderState;
 
 public class CoFHTweaks {
 
-	public static final String version = "1.7.10R1.1.1B1";
+	public static final String version = "1.7.10R1.1.1";
 
 	public static boolean canHaveWorld() {
 
