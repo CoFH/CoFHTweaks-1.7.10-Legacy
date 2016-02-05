@@ -2,6 +2,7 @@ package cofh.tweak.asmhooks.world;
 
 import cofh.repack.cofh.lib.util.LinkedHashList;
 import cofh.repack.cofh.lib.util.SynchronizedIdentityLinkedHashList;
+import cofh.repack.net.minecraft.client.renderer.chunk.SetVisibility;
 import cofh.repack.net.minecraft.client.renderer.chunk.VisGraph;
 import cofh.tweak.CoFHTweaks;
 import cofh.tweak.asmhooks.render.RenderGlobal;
@@ -33,15 +34,17 @@ public class ClientChunk extends Chunk {
 
 			for (;;) {
 				int i = 0;
+				boolean work = false;
 				for (; loaded.size() > 0; ++i) {
 					ClientChunk chunk = loaded.shift().buildSides();
-					if (chunk != null)
+					if (chunk != null) {
 						modified.add(chunk);
+						work = true;
+					}
 					if ((i & 3) == 0) {
 						yield();
 					}
 				}
-				boolean work = i != 0;
 				for (i = 0; modified.size() > 0; ++i) {
 					ClientChunk chunk = modified.shift();
 					if (loaded.contains(chunk)) {
@@ -49,14 +52,16 @@ public class ClientChunk extends Chunk {
 					}
 					for (VisGraph graph : chunk.visibility) {
 						if (graph.isDirty()) {
+							SetVisibility a = graph.getVisibility();
 							graph.computeVisibility();
+							work |= !a.equals(graph.getVisibility());
 						}
 					}
 					if ((i & 7) == 0) {
 						yield();
 					}
 				}
-				RenderGlobal.worker.dirty = (i != 0) | work;
+				RenderGlobal.worker.dirty = work;
 				try {
 					Thread.sleep(30);
 				} catch (InterruptedException e) {

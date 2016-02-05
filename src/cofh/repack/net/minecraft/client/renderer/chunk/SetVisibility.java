@@ -54,6 +54,21 @@ public class SetVisibility {
 	}
 
 	@Override
+	public boolean equals(Object o) {
+
+		if (o instanceof SetVisibility) {
+			return ((SetVisibility) o).bitSet.equals(bitSet);
+		}
+		return false;
+	}
+
+	@Override
+	public int hashCode() {
+
+		return bitSet.hashCode();
+	}
+
+	@Override
 	public SetVisibility clone() {
 
 		SetVisibility r = new SetVisibility();
@@ -102,4 +117,5 @@ public class SetVisibility {
 
 		return stringbuilder.toString();
 	}
+
 }

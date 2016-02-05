@@ -165,7 +165,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			worldrenderer.isWaitingOnOcclusionQuery = worldrenderer.skipAllRenderPasses();
 			// can't add fields, re-use
 
-			if (++i > 5) {
+			if (++i > 5) { // TODO: autodetect this threshold to catch when expensive renderers are running
 				i = 0;
 				long t = (System.nanoTime() - start) >>> 1;
 				if (t > 4500000L >>> 1)
