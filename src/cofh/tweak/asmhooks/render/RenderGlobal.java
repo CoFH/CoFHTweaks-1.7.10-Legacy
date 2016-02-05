@@ -69,6 +69,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 	private int prevRotationYaw = -9999;
 	private int prevRenderX, prevRenderY, prevRenderZ;
 	private short alphaSortProgress = 0;
+	private byte timeCheckInterval = 5, frameCounter, frameTarget;
 	private int countTileEntitiesTotal, countTileEntitiesRendered;
 	private IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList;
 	private IdentityLinkedHashList<WorldRenderer> workerWorldRenderers;
@@ -123,6 +124,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		theWorld.theProfiler.endStartSection("rebuild");
 		int lim = worldRenderersToUpdate.size() + workerWorldRenderers.size();
 		if (lim > 0) {
+			++frameCounter;
 			rebuildChunks(view, lim, System.nanoTime());
 		}
 
@@ -142,7 +144,8 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 
 		IdentityLinkedHashList<WorldRenderer> workerWorldRenderers = this.workerWorldRenderers;
 		IdentityLinkedHashList<WorldRenderer> worldRenderersToUpdateList = this.worldRenderersToUpdateList;
-		for (int c = 0, i = 0; c < lim; ++c) {
+		boolean spareTime = true;
+		l: for (int c = 0, i = 0; c < lim; ++c) {
 			WorldRenderer worldrenderer;
 			if (workerWorldRenderers.size() > 0) {
 				worldrenderer = workerWorldRenderers.shift();
@@ -165,14 +168,24 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			worldrenderer.isWaitingOnOcclusionQuery = worldrenderer.skipAllRenderPasses();
 			// can't add fields, re-use
 
-			if (++i > 5) { // TODO: autodetect this threshold to catch when expensive renderers are running
-				i = 0;
+			if (++i > timeCheckInterval) {
 				long t = (System.nanoTime() - start) >>> 1;
-				if (t > 4500000L >>> 1)
-					return false;
+				if (t > 4500000L >>> 1) {
+					if (i == c | frameCounter == frameTarget) {
+						timeCheckInterval = (byte) (--timeCheckInterval & (~timeCheckInterval));
+						frameTarget = (byte) (frameCounter + 50);
+					}
+					spareTime = false;
+					break l;
+				}
+				i = 0;
 			}
 		}
-		return true;
+		if (spareTime & frameCounter == frameTarget & timeCheckInterval < 5) {
+			++timeCheckInterval;
+			frameTarget = (byte) (frameCounter + 50);
+		}
+		return spareTime;
 	}
 
 	@Override
@@ -323,6 +336,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		r.append(". B: ").append(countEntitiesHidden);
 		r.append(", I: ").append(countEntitiesTotal - countEntitiesHidden - countEntitiesRendered);
 		r.append("; TE: ").append(countTileEntitiesRendered).append('/').append(countTileEntitiesTotal);
+		r.append("; ").append(frameTarget).append('=').append(frameCounter).append(' ').append(timeCheckInterval);
 		return r.toString();
 	}
 
