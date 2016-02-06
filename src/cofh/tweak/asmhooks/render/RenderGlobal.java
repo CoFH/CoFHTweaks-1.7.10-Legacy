@@ -336,7 +336,6 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 		r.append(". B: ").append(countEntitiesHidden);
 		r.append(", I: ").append(countEntitiesTotal - countEntitiesHidden - countEntitiesRendered);
 		r.append("; TE: ").append(countTileEntitiesRendered).append('/').append(countTileEntitiesTotal);
-		r.append("; ").append(frameTarget).append('=').append(frameCounter).append(' ').append(timeCheckInterval);
 		return r.toString();
 	}
 
@@ -622,6 +621,7 @@ public class RenderGlobal extends net.minecraft.client.renderer.RenderGlobal {
 			renderChunksWide = size;
 			renderChunksTall = 16;
 			renderChunksDeep = size;
+			renderersLoaded = 0;
 			worldRenderers = new WorldRenderer[renderChunksWide * renderChunksTall * renderChunksDeep];
 			sortedWorldRenderers = new WorldRenderer[renderChunksWide * renderChunksTall * renderChunksDeep];
 			minBlockX = 0;
