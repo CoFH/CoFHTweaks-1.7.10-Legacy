@@ -45,9 +45,7 @@ class ASMCore {
 	static {
 
 		hashes.put("net.minecraft.util.LongHashMap", (byte) 1);
-		if (!Config.lightChunks) {
-			hashes.put("net.minecraft.world.chunk.Chunk", (byte) 2);
-		}
+		hashes.put("net.minecraft.world.chunk.Chunk", (byte) 2);
 		hashes.put("net.minecraft.client.Minecraft", (byte) 3);
 		hashes.put("net.minecraft.entity.Entity", (byte) 4);
 		hashes.put("cofh.tweak.asmhooks.HooksCore", (byte) 5);
@@ -831,14 +829,16 @@ class ASMCore {
 			for (MethodNode m : cn.methods) {
 				String mName = m.name;
 				if (names[0].equals(mName) && "(Z)V".equals(m.desc)) {
-					updated = true;
-					for (int i = 0, e = m.instructions.size(); i < e; ++i) {
-						AbstractInsnNode n = m.instructions.get(i);
-						if (n.getOpcode() == RETURN) {
-							m.instructions.insertBefore(n, new VarInsnNode(ALOAD, 0));
-							m.instructions.insertBefore(n, new InsnNode(ICONST_0));
-							m.instructions.insertBefore(n, new FieldInsnNode(PUTFIELD, name, names[1], "Z"));
-							break;
+					if (!Config.lightChunks) {
+						updated = true;
+						for (int i = 0, e = m.instructions.size(); i < e; ++i) {
+							AbstractInsnNode n = m.instructions.get(i);
+							if (n.getOpcode() == RETURN) {
+								m.instructions.insertBefore(n, new VarInsnNode(ALOAD, 0));
+								m.instructions.insertBefore(n, new InsnNode(ICONST_0));
+								m.instructions.insertBefore(n, new FieldInsnNode(PUTFIELD, name, names[1], "Z"));
+								break;
+							}
 						}
 					}
 				} else if ("<init>".equals(mName)) {
