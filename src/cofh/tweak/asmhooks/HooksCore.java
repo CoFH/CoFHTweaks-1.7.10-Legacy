@@ -194,6 +194,8 @@ public class HooksCore {
 			} else if (computedLight < savedLight) {
 				lightUpdateBlockList[arrayEnd++] = 133152 | savedLight << 18;
 
+				world.theProfiler.endStartSection("mark_lit_dark");
+
 				while (arrayRead < arrayEnd) {
 					posLight = lightUpdateBlockList[arrayRead++];
 					xO = (posLight & 63) - 32 + x;
