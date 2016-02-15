@@ -60,6 +60,9 @@ public class Config {
 		comment = "If true, the client will perform in-depth lighting on chunks and the server will redundantly update lighting near players.";
 		(tag = config.getTag("ChunkLighting")).setComment(comment);
 		lightChunks = tag.getBooleanValue(lightChunks);
+		comment = "If true, in-depth AI profiling information will be available via mojang's profiler.";
+		(tag = config.getTag("AllowAIProfiling")).setComment(comment);
+		allowProfilingAI = tag.getBooleanValue(allowProfilingAI);
 
 		comment = "If true, the server-side AI will not process as frequently. On heavily burdened servers this will manifest as mobs not doing anything every few ticks";
 		(tag = config.getTag("Server.AggressiveAIReduction")).setComment(comment);
@@ -85,6 +88,7 @@ public class Config {
 		overrideFancyLeaves = tag.getIntValue(overrideFancyLeaves);
 	}
 
+	public static boolean allowProfilingAI = true;
 	public static boolean stackItems = true;
 	public static boolean collideEntities = true;
 	public static boolean animateTextures = true;

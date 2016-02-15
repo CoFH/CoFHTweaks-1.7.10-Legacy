@@ -24,7 +24,7 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 	@Override
 	public void onUpdateTasks() {
 
-		if (theProfiler.profilingEnabled) {
+		if (theProfiler.profilingEnabled & Config.allowProfilingAI) {
 			onUpdateTasksDebug();
 			return;
 		}
@@ -146,7 +146,10 @@ public class EntityAITasks extends net.minecraft.entity.ai.EntityAITasks {
 				int t = (MinecraftServer.getServer().getTickCounter() % 100) - 1;
 				if (t < 0) t = data.length - 1;
 				long p = data[t];
-				if (p > 40000000L) return;
+				if (p > 40000000L) {
+					theProfiler.endSection();
+					return;
+				}
 			}
 			theProfiler.startSection("tick");
 
