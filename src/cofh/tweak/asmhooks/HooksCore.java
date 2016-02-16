@@ -1,6 +1,7 @@
 package cofh.tweak.asmhooks;
 
 import cofh.tweak.CoFHTweaks;
+import cofh.tweak.asmhooks.world.ChunkCache;
 import cofh.tweak.util.ClassInheritenceArrayList;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
@@ -35,6 +36,13 @@ public class HooksCore {
 	public static String getBrand() {
 
 		return "CoFHTweaks v" + CoFHTweaks.version.substring(CoFHTweaks.version.indexOf('R') + 1);
+	}
+
+	public static ChunkCache chunkCache = null;
+
+	public static void setChunkCache(Chunk chunk) {
+
+		chunkCache = new ChunkCache(chunk.worldObj, chunk.xPosition, chunk.zPosition, 2);
 	}
 
 	public static int computeLightValue(World world, int x, int y, int z, EnumSkyBlock type) {
@@ -156,45 +164,56 @@ public class HooksCore {
 	public static boolean updateLightByType(World world, EnumSkyBlock type, int x, int y, int z) {
 
 		world.theProfiler.startSection("updateLightByType");
-		if (!world.doChunksNearChunkExist(x, y, z, 17)) {
+		if (world.theProfiler.profilingEnabled & Config.allowProfilingLighting) {
+			boolean r = updateLightByType_debug(world, type, x, y, z);
+			world.theProfiler.endSection();
+			return r;
+		}
+		if (y < 0 | y > 255 || !world.doChunksNearChunkExist(x, y, z, 17)) {
 			world.theProfiler.endSection();
 			return false;
 		} else {
+			Chunk chunk = world.getChunkFromBlockCoords(x, z);
+			if (chunk == null) {
+				world.theProfiler.endSection();
+				return false;
+			}
+
+			int savedLight = chunk.getSavedLightValue(type, x & 15, y, z & 15);
+			int computedLight = computeLightValue(world, chunk, x, y, z, type);
+			int posLight;
+
+			if (savedLight == computedLight) {
+				world.theProfiler.endSection();
+				return true;
+			}
+
 			int chunkWidth = 5, chunkRadius = chunkWidth >> 1;
 			int chunkX = (x >> 4) - chunkRadius, chunkZ = (z >> 4) - chunkRadius;
 			Chunk[] chunks = new Chunk[chunkWidth * chunkWidth];
 			for (int i = 0; i < chunks.length; ++i) {
 				int x2 = x + (i % chunkWidth - chunkRadius) * 16;
 				int z2 = z + (i / chunkWidth - chunkRadius) * 16;
-				if (world.blockExists(x2, y, z2)) {
+				if (x == x2 & z == z2) {
+					chunks[i] = chunk;
+				} else if (world.blockExists(x2, y, z2)) {
 					chunks[i] = world.getChunkFromBlockCoords(x2, z2);
 				}
 			}
-			world.theProfiler.startSection("getBrightness");
-			int minX = x, minY = y, minZ = z;
-			int maxX = x, maxY = y, maxZ = z;
-
-			int arrayRead = 0, arrayEnd = 0;
-
-			Chunk chunk = chunks[((z >> 4) - chunkZ) * chunkWidth + ((x >> 4) - chunkX)];
-			if (chunk == null | y < 0 | y > 255) {
-				return false;
-			}
-			int savedLight = chunk.getSavedLightValue(type, x & 15, y, z & 15);
-			int computedLight = computeLightValue(world, chunk, x, y, z, type);
-			int posLight;
 
 			int xO, yO, zO;
 			int xAbs, yAbs, zAbs;
 
+			int minX = x, minY = y, minZ = z;
+			int maxX = x, maxY = y, maxZ = z;
+
 			int[] lightUpdateBlockList = world.lightUpdateBlockList;
+			int arrayRead = 0, arrayEnd = 0;
 
 			if (computedLight > savedLight) {
 				lightUpdateBlockList[arrayEnd++] = 133152;
 			} else if (computedLight < savedLight) {
 				lightUpdateBlockList[arrayEnd++] = 133152 | savedLight << 18;
-
-				world.theProfiler.endStartSection("mark_lit_dark");
 
 				while (arrayRead < arrayEnd) {
 					posLight = lightUpdateBlockList[arrayRead++];
@@ -279,8 +298,6 @@ public class HooksCore {
 				arrayRead = 0;
 			}
 
-			world.theProfiler.endStartSection("checkedPosition < toCheckCount");
-
 			while (arrayRead < arrayEnd) {
 				posLight = lightUpdateBlockList[arrayRead++];
 				xO = (posLight & 63) - 32 + x;
@@ -348,7 +365,6 @@ public class HooksCore {
 				}
 			}
 
-			world.theProfiler.endSection();
 			world.markBlockRangeForRenderUpdate(minX, minY, minZ, maxX, maxY, maxZ);
 			world.theProfiler.endSection();
 			return true;
@@ -443,15 +459,24 @@ public class HooksCore {
 		}
 
 		if (k != l) {
+			int chunkX = i + 1, chunkZ = i1 + 1;
+			Chunk chunk = null;
 			for (int x = i; x < j; ++x) {
 				boolean xBound = x >= -30000000 & x < 30000000;
 				for (int z = i1; z < j1; ++z) {
 					boolean def = xBound & z >= -30000000 & z < 30000000;
-					if (!world.blockExists(x, 64, z)) {
-						continue;
-					}
 					if (def) {
-						Chunk chunk = world.getChunkFromBlockCoords(x, z);
+						if ((chunkX != x >> 4) | chunkZ != z >> 4) {
+							chunkX = x >> 4;
+							;
+							chunkZ = z >> 4;
+							;
+							if (!world.blockExists(x, 64, z)) {
+								z |= 15;
+								continue;
+							}
+							chunk = world.getChunkFromBlockCoords(x, z);
+						}
 						int cX = x & 15, cZ = z & 15;
 						for (int y = k; y < l; ++y) {
 							chunk.getBlock(cX, y, cZ).addCollisionBoxesToList(world, x, y, z, bb, collidingBoundingBoxes, entity);
@@ -648,6 +673,218 @@ public class HooksCore {
 
 		if (Config.animateTextures) {
 			obj.tick();
+		}
+	}
+
+	private static boolean updateLightByType_debug(World world, EnumSkyBlock type, int x, int y, int z) {
+
+		world.theProfiler.startSection("chunksExist");
+		if (y < 0 | y > 255 || !world.doChunksNearChunkExist(x, y, z, 17)) {
+			world.theProfiler.endSection();
+			return false;
+		} else {
+			Chunk chunk = world.getChunkFromBlockCoords(x, z);
+			if (chunk == null) {
+				world.theProfiler.endSection();
+				return false;
+			}
+			world.theProfiler.endStartSection("getBrightness");
+
+			int savedLight = chunk.getSavedLightValue(type, x & 15, y, z & 15);
+			int computedLight = computeLightValue(world, chunk, x, y, z, type);
+			int posLight;
+
+			if (savedLight == computedLight) {
+				world.theProfiler.endSection();
+				return true;
+			}
+
+			world.theProfiler.endStartSection("getChunks");
+			int chunkWidth = 5, chunkRadius = chunkWidth >> 1;
+			int chunkX = (x >> 4) - chunkRadius, chunkZ = (z >> 4) - chunkRadius;
+			Chunk[] chunks = new Chunk[chunkWidth * chunkWidth];
+			for (int i = 0; i < chunks.length; ++i) {
+				int x2 = x + (i % chunkWidth - chunkRadius) * 16;
+				int z2 = z + (i / chunkWidth - chunkRadius) * 16;
+				if (x == x2 & z == z2) {
+					chunks[i] = chunk;
+				} else if (world.blockExists(x2, y, z2)) {
+					chunks[i] = world.getChunkFromBlockCoords(x2, z2);
+				}
+			}
+
+			int xO, yO, zO;
+			int xAbs, yAbs, zAbs;
+
+			int minX = x, minY = y, minZ = z;
+			int maxX = x, maxY = y, maxZ = z;
+
+			int[] lightUpdateBlockList = world.lightUpdateBlockList;
+			int arrayRead = 0, arrayEnd = 0;
+
+			if (computedLight > savedLight) {
+				lightUpdateBlockList[arrayEnd++] = 133152;
+			} else if (computedLight < savedLight) {
+				lightUpdateBlockList[arrayEnd++] = 133152 | savedLight << 18;
+
+				world.theProfiler.endStartSection("mark_lit_dark");
+
+				while (arrayRead < arrayEnd) {
+					posLight = lightUpdateBlockList[arrayRead++];
+					xO = (posLight & 63) - 32 + x;
+					yO = (posLight >> 6 & 63) - 32 + y;
+					zO = (posLight >> 12 & 63) - 32 + z;
+					savedLight = posLight >> 18 & 15;
+					int x2 = xO & 15, z2 = zO & 15;
+
+					chunk = chunks[((zO >> 4) - chunkZ) * chunkWidth + ((xO >> 4) - chunkX)];
+					if (chunk == null | yO < 0 | yO > 255) {
+						continue;
+					}
+
+					{
+						int t;
+						minX = xO + ((t = minX - xO) & (t >> 31));
+						minY = yO + ((t = minY - yO) & (t >> 31));
+						minZ = zO + ((t = minZ - zO) & (t >> 31));
+						maxX = maxX - ((t = maxX - xO) & (t >> 31));
+						maxY = maxY - ((t = maxY - yO) & (t >> 31));
+						maxZ = maxZ - ((t = maxZ - zO) & (t >> 31));
+					}
+					computedLight = chunk.getSavedLightValue(type, x2, yO, z2);
+
+					if (computedLight == savedLight) {
+						chunk.setLightValue(type, x2, yO, z2, 0);
+
+						if (savedLight > 0) {
+							{
+								int t;
+								xAbs = xO - x;
+								xAbs = (xAbs + (t = xAbs >> 31)) ^ t;
+								yAbs = yO - y;
+								yAbs = (yAbs + (t = yAbs >> 31)) ^ t;
+								zAbs = zO - z;
+								zAbs = (zAbs + (t = zAbs >> 31)) ^ t;
+							}
+
+							if (xAbs + yAbs + zAbs < 17) {
+								if (x2 == 0 | x2 == 15 | z2 == 0 | z2 == 15 | yO == 0 | yO == 255) {
+									for (int i = 0; i < 6; ++i) {
+										int j4 = xO + Facing.offsetsXForSide[i];
+										int k4 = yO + Facing.offsetsYForSide[i];
+										int l4 = zO + Facing.offsetsZForSide[i];
+										computedLight = world.getSavedLightValue(type, j4, k4, l4);
+
+										int opacity = world.getBlock(j4, k4, l4).getLightOpacity(world, j4, k4, l4);
+										opacity &= ~opacity >> 31;
+										opacity -= (opacity - 1) >> 31;
+
+										if (computedLight == savedLight - opacity && arrayEnd < lightUpdateBlockList.length) {
+											if (k4 >= 0 && k4 <= 255) {
+												lightUpdateBlockList[arrayEnd++] = (j4 - x + 32) | ((k4 - y + 32) << 6) | ((l4 - z + 32) << 12) |
+														((savedLight - opacity) << 18);
+											}
+										}
+									}
+								} else {
+									for (int i = 0; i < 6; ++i) {
+										int j4 = x2 + Facing.offsetsXForSide[i];
+										int k4 = yO + Facing.offsetsYForSide[i];
+										int l4 = z2 + Facing.offsetsZForSide[i];
+										computedLight = chunk.getSavedLightValue(type, j4, k4, l4);
+
+										int opacity = chunk.getBlock(j4, k4, l4).getLightOpacity(world, j4, k4, l4);
+										opacity &= ~opacity >> 31;
+										opacity -= (opacity - 1) >> 31;
+
+										if (computedLight == savedLight - opacity && arrayEnd < lightUpdateBlockList.length) {
+											j4 = xO + Facing.offsetsXForSide[i];
+											l4 = zO + Facing.offsetsZForSide[i];
+											lightUpdateBlockList[arrayEnd++] = (j4 - x + 32) | ((k4 - y + 32) << 6) | ((l4 - z + 32) << 12) | ((savedLight - opacity) << 18);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+
+				arrayRead = 0;
+			}
+
+			world.theProfiler.endStartSection("checkedPosition < toCheckCount");
+
+			while (arrayRead < arrayEnd) {
+				posLight = lightUpdateBlockList[arrayRead++];
+				xO = (posLight & 63) - 32 + x;
+				yO = (posLight >> 6 & 63) - 32 + y;
+				zO = (posLight >> 12 & 63) - 32 + z;
+				int x2 = xO & 15, z2 = zO & 15;
+
+				chunk = chunks[((zO >> 4) - chunkZ) * chunkWidth + ((xO >> 4) - chunkX)];
+				if (chunk == null | yO < 0 | yO > 255) {
+					continue;
+				}
+
+				{
+					int t;
+					minX = xO + ((t = minX - xO) & (t >> 31));
+					minY = yO + ((t = minY - yO) & (t >> 31));
+					minZ = zO + ((t = minZ - zO) & (t >> 31));
+					maxX = maxX - ((t = maxX - xO) & (t >> 31));
+					maxY = maxY - ((t = maxY - yO) & (t >> 31));
+					maxZ = maxZ - ((t = maxZ - zO) & (t >> 31));
+				}
+				savedLight = chunk.getSavedLightValue(type, x2, yO, z2);
+				computedLight = computeLightValue(world, chunk, xO, yO, zO, type);
+
+				if (computedLight != savedLight) {
+					chunk.setLightValue(type, x2, yO, z2, computedLight);
+
+					if (computedLight > savedLight & arrayEnd < lightUpdateBlockList.length) {
+						{
+							int t;
+							xAbs = xO - x;
+							xAbs = (xAbs + (t = xAbs >> 31)) ^ t;
+							yAbs = yO - y;
+							yAbs = (yAbs + (t = yAbs >> 31)) ^ t;
+							zAbs = zO - z;
+							zAbs = (zAbs + (t = zAbs >> 31)) ^ t;
+						}
+
+						if (xAbs + yAbs + zAbs < 17) {
+							if (x2 == 0 | x2 == 15 | z2 == 0 | z2 == 15 | yO == 0 | yO == 255) {
+								for (int i = 0; i < 6; ++i) {
+									int j4 = xO + Facing.offsetsXForSide[i];
+									int k4 = yO + Facing.offsetsYForSide[i];
+									int l4 = zO + Facing.offsetsZForSide[i];
+									if (arrayEnd < lightUpdateBlockList.length && world.getSavedLightValue(type, j4, k4, l4) < computedLight) {
+										if (k4 >= 0 && k4 <= 255) {
+											lightUpdateBlockList[arrayEnd++] = j4 - x + 32 + (k4 - y + 32 << 6) + (l4 - z + 32 << 12);
+										}
+									}
+								}
+							} else {
+								for (int i = 0; i < 6; ++i) {
+									int j4 = x2 + Facing.offsetsXForSide[i];
+									int k4 = yO + Facing.offsetsYForSide[i];
+									int l4 = z2 + Facing.offsetsZForSide[i];
+									if (arrayEnd < lightUpdateBlockList.length && chunk.getSavedLightValue(type, j4, k4, l4) < computedLight) {
+										j4 = xO + Facing.offsetsXForSide[i];
+										l4 = zO + Facing.offsetsZForSide[i];
+										lightUpdateBlockList[arrayEnd++] = j4 - x + 32 + (k4 - y + 32 << 6) + (l4 - z + 32 << 12);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			world.theProfiler.endStartSection("mark_render_update");
+			world.markBlockRangeForRenderUpdate(minX, minY, minZ, maxX, maxY, maxZ);
+			world.theProfiler.endSection();
+			return true;
 		}
 	}
 

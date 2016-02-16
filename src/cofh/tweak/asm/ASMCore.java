@@ -158,15 +158,23 @@ class ASMCore {
 		return bytes;
 	}
 
+	// TODO: alterWorldServer. improve block random ticking. add hasRandomTicks to Chunk
+
 	private static byte[] alterWorld(String name, byte[] bytes, ClassReader cr) {
 
 		String[] names;
 		if (LoadingPlugin.runtimeDeobfEnabled) {
-			names = new String[] { "func_72945_a", "func_72903_x", "func_147451_t", "func_98179_a", "func_147463_c" };
+			names = new String[] { "func_72945_a", "func_72903_x",
+					"func_147451_t", "func_98179_a", "func_147463_c", "func_72964_e" };
 		} else {
 			names = new String[] { "getCollidingBoundingBoxes", "setActivePlayerChunksAndCheckLight",
-					"func_147451_t", "computeLightValue", "updateLightByType" };
+					"func_147451_t", "computeLightValue", "updateLightByType", "getChunkFromChunkCoords" };
 		}
+
+		// TODO: override entity and tile entity ticking to perform per-chunk
+
+		// add active set to IdentityHashList, guard with if(remove(...)) to protect against new additions during tick
+		// add hasTileEntities to Chunk to skip over them? group them by chunk location?
 
 		ClassNode cn = new ClassNode(ASM5);
 		cr.accept(cn, 0);
@@ -176,7 +184,8 @@ class ASMCore {
 			MethodNode playerCheckLight = null;
 			MethodNode computeLightValue = null;
 			MethodNode updateLightByType = null;
-			int m = 0, T = 4;
+			MethodNode getChunkFromCache = null;
+			int m = 0, T = 5;
 			for (MethodNode n : cn.methods) {
 				if (names[0].equals(n.name)) {
 					boundingBoxes = n;
@@ -189,6 +198,9 @@ class ASMCore {
 					if (++m == T) break;
 				} else if (names[4].equals(n.name)) {
 					updateLightByType = n;
+					if (++m == T) break;
+				} else if (names[5].equals(n.name)) {
+					getChunkFromCache = n;
 					if (++m == T) break;
 				}
 			}
@@ -232,6 +244,27 @@ class ASMCore {
 						+ "Ljava/util/List;";
 				boundingBoxes.instructions.add(new MethodInsnNode(INVOKESTATIC, HooksCore, "getWorldCollisionBoxes", sig, false));
 				boundingBoxes.instructions.add(new InsnNode(ARETURN));
+			}
+
+			if (getChunkFromCache != null) {
+				getChunkFromCache.localVariables = null;
+
+				LabelNode lEnd = new LabelNode();
+				InsnList list = new InsnList();
+				list.add(new FieldInsnNode(GETSTATIC, HooksCore, "chunkCache", "Lcofh/tweak/asmhooks/world/ChunkCache;"));
+				list.add(new InsnNode(DUP));
+				list.add(new JumpInsnNode(IFNULL, lEnd));
+				list.add(new VarInsnNode(ILOAD, 1));
+				list.add(new VarInsnNode(ILOAD, 2));
+				list.add(new MethodInsnNode(INVOKEVIRTUAL, "cofh/tweak/asmhooks/world/ChunkCache", "getChunk", "(II)Lnet/minecraft/world/chunk/Chunk;", false));
+				list.add(new InsnNode(DUP));
+				list.add(new JumpInsnNode(IFNULL, lEnd));
+				list.add(new InsnNode(ARETURN));
+				list.add(lEnd);
+				list.add(new FrameNode(F_SAME1, 0, null, 0, new Object[] { "java/lang/Object" }));
+				list.add(new InsnNode(POP));
+
+				getChunkFromCache.instructions.insert(list);
 			}
 
 			if (playerCheckLight != null) {
@@ -669,8 +702,10 @@ class ASMCore {
 					if (!"(Lnet/minecraft/entity/Entity;D)Lnet/minecraft/entity/player/EntityPlayer;".equals(m.desc)) {
 						break c;
 					}
-					for (; n != null && n.getType() != AbstractInsnNode.LABEL; n = n.getPrevious());
-					for (; n != null && n.getOpcode() != ALOAD; n = n.getNext());
+					for (; n != null && n.getType() != AbstractInsnNode.LABEL; n = n.getPrevious())
+						;
+					for (; n != null && n.getOpcode() != ALOAD; n = n.getNext())
+						;
 					if (n != null)
 						despawnEntity.instructions.insertBefore(n, list);
 					break;
@@ -814,9 +849,11 @@ class ASMCore {
 
 		String[] names;
 		if (LoadingPlugin.runtimeDeobfEnabled) {
-			names = new String[] { "func_150803_c", "field_76650_s", "func_76618_a", "func_76588_a", "field_76644_m" };
+			names = new String[] { "func_150803_c", "field_76650_s", "func_76618_a", "func_76588_a",
+					"field_76644_m", "func_150809_p", "func_76613_n", "field_150814_l", "field_76646_k" };
 		} else {
-			names = new String[] { "recheckGaps", "isGapLightingUpdated", "getEntitiesOfTypeWithinAAAB", "getEntitiesWithinAABBForEntity", "hasEntities" };
+			names = new String[] { "recheckGaps", "isGapLightingUpdated", "getEntitiesOfTypeWithinAAAB", "getEntitiesWithinAABBForEntity",
+					"hasEntities", "func_150809_p", "resetRelightChecks", "isLightPopulated", "isTerrainPopulated" };
 		}
 
 		name = name.replace('.', '/');
@@ -881,6 +918,32 @@ class ASMCore {
 					list.add(new FrameNode(F_SAME, 0, null, 0, null));
 					list.add(label);
 					m.instructions.insert(list);
+				} else if (names[5].equals(mName)) {
+					updated = true;
+					m.localVariables = null;
+
+					if (!Config.fullLightChunks) {
+						m.instructions.clear();
+						m.instructions.insert(new InsnNode(RETURN));
+						m.instructions.insert(new MethodInsnNode(INVOKEVIRTUAL, "net/minecraft/world/chunk/Chunk", names[6], "()V", false));
+						m.instructions.insert(new VarInsnNode(ALOAD, 0));
+						m.instructions.insert(new FieldInsnNode(PUTFIELD, "net/minecraft/world/chunk/Chunk", names[7], "Z"));
+						m.instructions.insert(new InsnNode(ICONST_1));
+						m.instructions.insert(new VarInsnNode(ALOAD, 0));
+						m.instructions.insert(new FieldInsnNode(PUTFIELD, "net/minecraft/world/chunk/Chunk", names[8], "Z"));
+						m.instructions.insert(new InsnNode(ICONST_1));
+						m.instructions.insert(new VarInsnNode(ALOAD, 0));
+					} else {
+						m.instructions.insert(new MethodInsnNode(INVOKESTATIC, HooksCore, "setChunkCache", "(Lnet/minecraft/world/chunk/Chunk;)V", false));
+						m.instructions.insert(new VarInsnNode(ALOAD, 0));
+
+						for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+							if (n.getOpcode() == RETURN) {
+								m.instructions.insertBefore(n, new InsnNode(ACONST_NULL));
+								m.instructions.insertBefore(n, new FieldInsnNode(PUTSTATIC, HooksCore, "chunkCache", "Lcofh/tweak/asmhooks/world/ChunkCache;"));
+							}
+						}
+					}
 				}
 			}
 
