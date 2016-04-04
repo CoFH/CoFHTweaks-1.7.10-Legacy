@@ -459,7 +459,7 @@ public class HooksCore {
 		}
 
 		if (k != l) {
-			int chunkX = i + 1, chunkZ = i1 + 1;
+			int chunkX = (i >> 4) - 1, chunkZ = (i1 >> 4) - 1;
 			Chunk chunk = null;
 			for (int x = i; x < j; ++x) {
 				boolean xBound = x >= -30000000 & x < 30000000;
