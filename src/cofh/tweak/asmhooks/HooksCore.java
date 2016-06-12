@@ -473,6 +473,7 @@ public class HooksCore {
 							;
 							if (!world.blockExists(x, 64, z)) {
 								z |= 15;
+								chunk = null;
 								continue;
 							}
 							chunk = world.getChunkFromBlockCoords(x, z);
@@ -486,6 +487,9 @@ public class HooksCore {
 							Blocks.bedrock.addCollisionBoxesToList(world, x, y, z, bb, collidingBoundingBoxes, entity);
 						}
 					}
+				}
+				if (chunk == null) {
+					x |= 15;
 				}
 			}
 		}
