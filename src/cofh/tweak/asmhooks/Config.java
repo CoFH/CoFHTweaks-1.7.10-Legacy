@@ -34,6 +34,7 @@ public class Config {
 					distantCulling = Boolean.parseBoolean(config.getProperty("DistantCulling", String.valueOf(distantCulling)));
 					fastBlocks = Boolean.parseBoolean(config.getProperty("FastClientSetBlock", String.valueOf(fastBlocks)));
 					agressiveAICulling = Boolean.parseBoolean(config.getProperty("AgressiveAIReduction", String.valueOf(agressiveAICulling)));
+					fastCraftAndOptiFineCompatibility = Boolean.parseBoolean(config.getProperty("FastCraftAndOptiFineCompatibility", String.valueOf(fastCraftAndOptiFineCompatibility)));
 
 					folder.deleteOnExit();
 				}
@@ -94,6 +95,9 @@ public class Config {
 		comment = "If -1, the default will happen, if 0 leaves will always be solid, if 1 leaves will always be transparent. May not work on all mod leaves";
 		(tag = config.getTag("Client.OverrideFancyLeaves")).setComment(comment);
 		overrideFancyLeaves = tag.getIntValue(overrideFancyLeaves);
+		comment = "Disable some features to retain compatibility with FastCraft and OptiFine";
+		(tag = config.getTag("Client.FastCraftAndOptiFineCompatibility")).setComment(comment);
+		fastCraftAndOptiFineCompatibility = tag.getBooleanValue(fastCraftAndOptiFineCompatibility);
 	}
 
 	public static boolean allowProfilingAI = true;
@@ -109,5 +113,6 @@ public class Config {
 	public static boolean agressiveAICulling = false;
 	public static boolean showFPS = !LoadingPlugin.obfuscated;
 	public static int overrideFancyLeaves = -1;
+	public static boolean fastCraftAndOptiFineCompatibility = false;
 
 }
