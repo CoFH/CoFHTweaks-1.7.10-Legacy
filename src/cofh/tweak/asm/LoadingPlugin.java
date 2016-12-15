@@ -176,7 +176,9 @@ public class LoadingPlugin implements IFMLLoadingPlugin {
 		@SuppressWarnings("rawtypes")
 		public void init(FMLInitializationEvent evt) {
 
-			Minecraft.getMinecraft().renderGlobal = new RenderGlobal(Minecraft.getMinecraft());
+			if(!Config.fastCraftAndOptiFineCompatibility) {
+				Minecraft.getMinecraft().renderGlobal = new RenderGlobal(Minecraft.getMinecraft());
+			}
 			FMLCommonHandler.instance().bus().register(this);
 			MinecraftForge.EVENT_BUS.register(this);
 		}
